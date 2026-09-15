@@ -33,7 +33,8 @@ def start(args) -> int:
         supplied = ""
     detected = subprocess.run(["git", "config", "--get", "remote.origin.url"], capture_output=True, text=True, check=False).stdout.strip()
     repo = supplied or detected or "not yet assigned"
-    if supplied and detected and supplied.rstrip("/") != detected.rstrip("/"):
+    normalize = lambda value: value.rstrip("/").removesuffix(".git")
+    if supplied and detected and normalize(supplied) != normalize(detected):
         print(f"Repository target conflicts with local origin: {supplied} != {detected}", file=sys.stderr)
         return 2
     prompt = f"Use the professional-coding skill. Read the current project instructions and profile. GitHub repository: {repo}. Classify this directory, preserve main, select only applicable skills, and execute the complete validated workflow. Do not copy CoderSkill into this project. Do not perform destructive actions, credential operations, or hardware writes. Communicate with the user in Turkish and write repository artifacts in English."
