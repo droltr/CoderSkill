@@ -31,6 +31,7 @@ The current repository contains the initial implementation plan and a canonical 
 The initial implementation is available on `main`. It includes the read-only environment doctor, adapter generation and drift checks, passive security audit, project-profile and lesson validation, governance templates, least-privilege CI, and deterministic tests. Full GitHub lifecycle mutation remains deliberately review-gated; prompt instructions alone are never a security boundary.
 
 See [PLAN.md](PLAN.md) for the architecture, delivery phases, and validation strategy. The canonical skill is [skills/professional-coding/SKILL.md](skills/professional-coding/SKILL.md).
+See [RELEASE_NOTES.md](RELEASE_NOTES.md) for versioned changes and durable workflow/security decisions.
 
 ## Execution status
 
