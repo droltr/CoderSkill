@@ -15,3 +15,11 @@ If a secret was committed, stop distribution, rotate it when applicable, and rep
 ## Scope
 
 The project includes policy files, adapters, validation scripts, and documentation. It does not perform physical hardware writes.
+
+## Security review record
+
+The independent review for the v0.2 hardening milestone was completed on 2026-09-15. The scope covered repository scripts, authorization gates, workflow permissions, dependency metadata, secret and identifier scanning, path handling, and privacy documentation.
+
+Results: no confirmed vulnerabilities or exposed secrets were found by the local audit, CodeQL, or required CI checks. Residual risks are tracked separately: GitHub Actions currently use version tags rather than immutable commit references, and optional provider-validity secret checks remain disabled by repository policy. These are defense-in-depth improvements, not confirmed exploits.
+
+Review evidence is limited to redacted, reproducible command results; no credentials, host data, serial numbers, or exploit details are published.
