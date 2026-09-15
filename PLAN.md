@@ -49,6 +49,7 @@ Kanonik içerik `src/` altında tutulur. Dağıtım dosyaları bir üretim scrip
 |-- skills/professional-coding/
 |   |-- SKILL.md
 |   |-- references/
+|   |   `-- environment-bootstrap.md
 |   `-- scripts/
 |-- .agents/skills/professional-coding/
 |-- .claude/skills/professional-coding/
@@ -162,11 +163,22 @@ Prompt kuralları tek başına güvenlik kontrolü sayılmamalıdır. Aşağıda
 
 - `build-adapters`: kanonik kaynaktan araç dizinlerini üretir, hash manifesti yazar.
 - `validate-skill`: YAML frontmatter, linkler, path taşması, boyut sınırı ve araç uyumluluğunu kontrol eder.
+- `doctor`: işletim sistemi, yerel repo konumu, Git/GitHub/AI CLI ve proje toolchain gereksinimlerini salt-okunur denetler; JSON readiness raporu üretir.
+- `bootstrap plan`: eksik yazılımlar için resmi kaynak, sürüm, kurulum kapsamı, değişecek yollar, yetki ihtiyacı ve rollback içeren mutasyonsuz plan üretir.
+- `bootstrap apply --plan <id>`: yalnızca açıkça onaylanan, hedefi ve süresi sabit kurulum planını uygular; internetten indirilen artifact'larda bütünlük doğrulaması yapar.
 - `preflight --scope staged|branch|history`: secret, PII, yasaklı dosya, büyük binary, lisans ve gerekli kalite kontrollerini tek JSON sözleşmesiyle çalıştırır.
 - `github-flow plan`: hiçbir yazma yapmadan yapılacak GitHub işlemlerini ve hedefleri JSON olarak gösterir.
 - `github-flow apply --plan <id>`: yalnızca kullanıcı onaylı, süresi ve repo hedefi sabit plana izin verir; tekrar çalıştırma idempotent olur.
 
 Script'ler shell metni birleştirmek yerine argüman dizileri kullanmalı, secret değerlerini loglamamalı ve makinece ayrıştırılabilir çıkış kodları vermelidir. `--dry-run` tüm dış yazma yollarında zorunludur.
+
+### Ortam ve yerel repo hazırlığı
+
+İlk görevden önce `doctor` şu sırayla çalışır: sistem/sandbox tespiti, kullanıcı tarafından verilen veya mevcut Git kökünün çözülmesi, yapılandırılmış repo kökleri içinde sınırlı arama, Git ve `gh` denetimi, aktif AI CLI skill keşfi, proje manifestlerinden toolchain çıkarımı ve güvenlik aracı kontrolü.
+
+Yerel repoların ana dizini tracked dosyalara kişisel mutlak yol olarak yazılmaz. Platformun kullanıcı-konfigürasyon dizinindeki untracked ayar `repository_root` değerini tutar. Ayrı bir yerel registry yalnızca proje adı, kanonik yol, beklenen `droltr/<repo>` kimliği, credentials içermeyen remote URL, varsayılan branch ve son doğrulama zamanını saklar. Birden fazla clone bulunduğunda araç seçim yapmaz.
+
+Eksik araçlar otomatik kurulmaz. Önce proje-local/izole, sonra kullanıcı kapsamı, son olarak zorunluysa sistem kapsamı önerilir. Plan; resmi kaynak, pinlenmiş sürüm, checksum/imza, gereken ağ/yönetici yetkisi, değişecek dosyalar ve kaldırma adımlarını gösterir. Remote install script'i doğrudan shell'e pipe edilmez.
 
 ## 7. CI/CD ve GitHub depo politikası
 
@@ -209,8 +221,11 @@ Gerçek token veya gerçek kişisel veri hiçbir testte kullanılmaz. GitHub yaz
 - Desteklenen minimum CLI sürümlerini belirle.
 - GitHub organizasyon politikası, commit imzası ve otomasyon yetki sınırlarını kaydet.
 - İşlenecek PII sınıfları ve yasal/bölgesel gereksinimleri netleştir.
+- Makine-lokal `repository_root` ve repo registry şemasını belirle.
+- Git, `gh`, desteklenen AI CLI'lar, project toolchain ve güvenlik tarayıcıları için uyumluluk manifestini oluştur.
+- `doctor` ile `bootstrap plan/apply` yetki ve rollback sözleşmelerini test et.
 
-Çıkış ölçütü: onaylanmış tehdit modeli, yetki matrisi ve uyumluluk matrisi.
+Çıkış ölçütü: onaylanmış tehdit modeli, yetki matrisi, uyumluluk matrisi ve salt-okunur readiness raporu.
 
 ### Faz 1 — Taşınabilir MVP
 

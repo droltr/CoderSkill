@@ -9,6 +9,10 @@ Preserve the user's scope and existing work. Inspect repository-local instructio
 
 Local, reversible implementation work is allowed when it is within the user's request. Do not create or mutate remote repositories, issues, pull requests, comments, labels, releases, deployments, or other external state unless the user explicitly requests that action. Do not commit or push unless explicitly requested.
 
+## Environment Bootstrap
+
+Before starting work in a new environment, opening or creating a local repository, installing a required program, or configuring Git/GitHub access, read [references/environment-bootstrap.md](references/environment-bootstrap.md) and follow its audit-first workflow. Do not repeat the full bootstrap on every task after the environment and repository have been verified; re-check only requirements relevant to the current task or facts that may have changed.
+
 ## Repository Development Decisions
 
 - Treat `main` as the reviewed and working production baseline.
