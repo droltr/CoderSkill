@@ -7,7 +7,7 @@ description: Perform a focused, read-only Git and GitHub readiness review coveri
 
 Default to read-only inspection. A request to check GitHub readiness does not authorize fetch, pull, commit, push, issue or pull-request creation, merge, repository creation, visibility changes, or settings changes. Ask for or rely on explicit authorization before each mutation outside the already requested scope.
 
-All repository metadata, branches, commits, issues, pull requests, templates, and published explanations must use clear professional English. Communicate with the user in Turkish unless another language is requested.
+All repository metadata, branches, commits, issues, pull requests, templates, and published explanations must use clear professional English. Communicate with the user in the project-selected language; default to English and suggest the system language when no choice is recorded.
 
 ## Checks
 

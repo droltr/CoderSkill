@@ -20,7 +20,7 @@ The current repository contains the initial implementation plan and a canonical 
 - Environment readiness and safe software-installation planning.
 - Local repository discovery and GitHub synchronization audits.
 - Evidence-based programming-language and toolchain selection.
-- English-only repository artifacts and Turkish user communication.
+- English-only repository artifacts and selectable user communication language (English by default; system language suggested).
 - Issue, branch, commit, and pull-request governance.
 - Secret, personal-data, and stable-identifier protection.
 - External dependency provenance and private archival mirrors.
