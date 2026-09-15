@@ -32,6 +32,20 @@ This is an early planning and policy baseline. Deterministic `doctor`, `bootstra
 
 See [PLAN.md](PLAN.md) for the architecture, delivery phases, and validation strategy. The canonical skill is [skills/professional-coding/SKILL.md](skills/professional-coding/SKILL.md).
 
+## Execution status
+
+The assistant uses a visible status marker at the start of every progress or final message:
+
+```text
+[STATUS: IN_PROGRESS]
+[STATUS: WAITING_FOR_USER]
+[STATUS: BLOCKED]
+[STATUS: COMPLETE]
+[STATUS: FAILED]
+```
+
+`IN_PROGRESS` means work is continuing. `WAITING_FOR_USER` names the exact answer or approval required. `BLOCKED` is reserved for a verified blocker after safe alternatives were checked. `COMPLETE` is used only after the requested scope and validation are finished.
+
 ## Usage
 
 The focused skills are designed to be invoked by name after they have been installed or linked into the active tool's documented skill directory. Use the smallest skill that matches the request:

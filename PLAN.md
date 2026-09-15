@@ -117,6 +117,10 @@ Record upstream URL, mirror URL, immutable commit, SPDX/license, retrieval date,
 
 Hardware-specific rules load only for matching projects. HID, SMBus, I2C, firmware, and controller writes are potentially destructive. Automated tests must not perform physical writes. Physical tests require explicit authorization, a selected device/zone, low-brightness starting state, observed verification, and a tested recovery path. OpenRGB, `game-lighting`, Hardware Sync, Qt metadata, and related tracking data must never leak into unrelated projects.
 
+## Execution status and continuity
+
+Every assistant progress and final message begins with one of `IN_PROGRESS`, `WAITING_FOR_USER`, `BLOCKED`, `COMPLETE`, or `FAILED`. Multi-phase updates include the current phase and next transition. A waiting state names the exact user input or approval required; a blocker includes the safe alternatives already checked. Tracked status files are not used as a substitute for visible user-facing status and remain local/ignored unless a project explicitly needs an audit record.
+
 ## Validation and delivery phases
 
 CI will validate adapter drift, skill structure, supported CLI versions and operating systems, synthetic secret/PII fixtures, repository discovery and synchronization states, prompt-injection cases, English first-party content, dependencies, licenses, Actions permissions, and isolated GitHub dry-runs. Hardware tests remain mock-only unless separately authorized and reported as physical verification.
