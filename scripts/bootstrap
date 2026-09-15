@@ -1,4 +1,3 @@
 #!/usr/bin/env sh
 set -eu
-if [ "${1:-}" != "plan" ]; then echo "Only read-only 'bootstrap plan' is available; installation requires an explicit reviewed plan." >&2; exit 2; fi
-exec python3 "$(dirname "$0")/bootstrap_plan.py"
+exec python3 "$(dirname "$0")/bootstrap_plan.py" "$@"
