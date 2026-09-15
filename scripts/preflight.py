@@ -11,7 +11,13 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--scope", choices=("staged", "branch", "history"), default="branch")
     args = parser.parse_args()
-    checks = [run(["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]), run(["scripts/build-adapters", "--check"]), run(["scripts/security-audit", "--format", "json", "--root", "."]), run(["git", "diff", "--check"])]
+    if args.scope == "staged":
+        scope_check = run(["git", "diff", "--cached", "--name-only"])
+    elif args.scope == "history":
+        scope_check = run(["git", "rev-parse", "--verify", "HEAD"])
+    else:
+        scope_check = run(["git", "diff", "--name-only", "main...HEAD"])
+    checks = [scope_check, run(["python3", "-m", "unittest", "discover", "-s", "tests", "-v"]), run(["scripts/build-adapters", "--check"]), run(["scripts/security-audit", "--format", "json", "--root", "."]), run(["git", "diff", "--check"])]
     print(json.dumps({"schema": 1, "scope": args.scope, "read_only": True, "status": "pass" if all(c["returncode"] == 0 for c in checks) else "fail", "checks": checks}, indent=2))
     return 0 if all(c["returncode"] == 0 for c in checks) else 1
 
