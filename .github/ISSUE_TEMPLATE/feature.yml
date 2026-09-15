@@ -1,0 +1,26 @@
+name: Feature request
+description: Propose a focused, reviewable improvement.
+title: "feat: "
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem and purpose
+      description: What problem would this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the smallest useful implementation.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety and privacy
+      options:
+        - label: I will not include secrets, personal data, or unique device identifiers.
+          required: true

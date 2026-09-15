@@ -1,0 +1,29 @@
+name: Bug report
+description: Report a reproducible problem without publishing sensitive data.
+title: "bug: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: "Thank you. Do not include credentials, local paths, usernames, hostnames, IP/MAC addresses, serial numbers, or raw diagnostics."
+  - type: checkboxes
+    id: privacy
+    attributes:
+      label: Privacy confirmation
+      options:
+        - label: I removed secrets, personal data, and unique device identifiers.
+          required: true
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What happened and what did you expect?
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Reproduction and validation
+      description: Provide safe, minimal reproduction steps and test results.
+    validations:
+      required: true
