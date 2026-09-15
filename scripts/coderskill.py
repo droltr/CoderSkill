@@ -37,6 +37,13 @@ def start(args) -> int:
     if supplied and detected and normalize(supplied) != normalize(detected):
         print(f"Repository target conflicts with local origin: {supplied} != {detected}", file=sys.stderr)
         return 2
+    auth = subprocess.run(["gh", "auth", "status", "--hostname", "github.com"], capture_output=True, text=True, check=False) if shutil.which("gh") else None
+    account_line = next((line.strip() for line in ((auth.stdout + "\n" + auth.stderr).splitlines()) if " account " in line.lower()), "unavailable") if auth else "gh CLI unavailable"
+    print(f"GitHub identity check: {account_line}")
+    print(f"Target repository: {repo}")
+    if args.run and not args.confirm_account:
+        print("Account confirmation required. Re-run with --confirm-account only after reviewing the identity and target.", file=sys.stderr)
+        return 2
     prompt = f"Use the professional-coding skill. Read the current project instructions and profile. GitHub repository: {repo}. Classify this directory, preserve main, select only applicable skills, and execute the complete validated workflow. Do not copy CoderSkill into this project. Do not perform destructive actions, credential operations, or hardware writes. Communicate with the user in Turkish and write repository artifacts in English."
     print(prompt)
     if not args.run: return 0
@@ -54,7 +61,7 @@ def start(args) -> int:
 def main():
     parser = argparse.ArgumentParser(prog="coderskill"); sub = parser.add_subparsers(dest="command", required=True)
     i = sub.add_parser("install"); i.add_argument("--update", action="store_true")
-    s = sub.add_parser("start"); s.add_argument("phrase", nargs="+"); s.add_argument("--github"); s.add_argument("--agent", choices=("codex", "claude", "gemini")); s.add_argument("--run", action="store_true")
+    s = sub.add_parser("start"); s.add_argument("phrase", nargs="+"); s.add_argument("--github"); s.add_argument("--agent", choices=("codex", "claude", "gemini")); s.add_argument("--run", action="store_true"); s.add_argument("--confirm-account", action="store_true")
     args = parser.parse_args()
     if args.command == "install": return install(args.update)
     if "execute" not in args.phrase or "order" not in args.phrase or "66" not in args.phrase: print("Use: coderskill start execute order 66", file=sys.stderr); return 2
