@@ -11,6 +11,8 @@ All repository metadata, branches, commits, issues, pull requests, templates, an
 
 ## Checks
 
+Use the project profile to select only relevant GitHub capabilities. Actions and Security are publication gates when configured; Projects and Insights are optional planning or observational features; Agent integration is optional and must not bypass review or CI.
+
 - Confirm the path is a Git worktree and preserve all user changes.
 - Inspect branch, upstream, remote URLs, ahead/behind/divergence, untracked files, submodules, and published history without exposing embedded credentials or personal paths.
 - Verify `origin` targets the intended private `droltr/<repository>` project and `main` is the reviewed baseline.

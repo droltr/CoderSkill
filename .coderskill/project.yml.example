@@ -4,4 +4,7 @@ repository: droltr/example-project
 default_branch: main
 artifact_language: english
 user_communication_language: turkish
-active_profiles: []
+active_profiles:
+  - github-actions
+  - github-security
+  - github-milestones
