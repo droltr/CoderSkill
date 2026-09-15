@@ -1,296 +1,150 @@
-# Çoklu AI Kodlama Skill'i Uygulama Planı
+# Multi-Tool Coding Skill Implementation Plan
 
-## 1. Amaç ve başarı ölçütleri
+## Purpose
 
-Bu proje; Codex, Claude Code, Gemini CLI ve Agent Skills standardını destekleyen diğer kodlama araçlarına aynı mühendislik davranışını kazandıran, denetlenebilir ve sürümlenebilir bir paket üretecektir.
+CoderSkill provides a portable, auditable, and versioned professional coding policy for Codex, Claude Code, Gemini CLI, and other tools that support Agent Skills. It standardizes local-first development, environment readiness, language selection, privacy, security, GitHub governance, dependency provenance, and conditional hardware safety.
 
-Başarılı bir ilk sürüm:
+## Language policy
 
-- Tek bir kanonik politika kaynağından araçlara özgü giriş dosyaları üretir.
-- CLI hangi desteklenen araçtan başlatılırsa başlatılsın proje talimatlarını ve ilgili skill'i keşfeder.
-- Sırları, kişisel verileri ve tehlikeli değişiklikleri commit veya uzak GitHub işlemi öncesinde engeller.
-- Issue -> branch -> commit -> pull request bağlantısını makinece doğrulanabilir biçimde kurar.
-- Kullanıcı onayı olmadan push, issue/PR oluşturma, yorum yazma, merge, release veya başka bir dış sistem değişikliği yapmaz.
-- Linux, macOS ve Windows üzerinde aynı politika sonucunu üretir; platforma özel uygulama ayrıntıları adaptörlerde kalır.
-- Skill kopyaları arasındaki sapmayı CI'da tespit eder.
+All first-party repository content must be written in clear, concise, professional English: source code, identifiers, comments, documentation, configuration descriptions, branch names, commits, issues, pull requests, release notes, and publishable logs. The AI assistant communicates with the user in Turkish unless another language is requested. Third-party vendored code and immutable historical records are not rewritten only for translation.
 
-## 2. Tasarım kararı: kanonik çekirdek, ince adaptörler
+## Selective skill architecture
 
-Araçlar arasında ortak payda `SKILL.md` olsa da keşif dizinleri, sürekli yüklenen talimat dosyaları, izinler ve hook sistemleri aynı değildir. Bu nedenle ayrı ayrı elle yönetilen skill'ler yerine aşağıdaki model kullanılmalıdır:
+The repository uses one canonical full-workflow skill plus focused skills so narrow requests consume less context:
+
+- `professional-coding`: end-to-end implementation and multi-phase work.
+- `project-bootstrap`: local project discovery, synchronization, environment readiness, and language selection.
+- `security-audit`: read-only security, privacy, secret, and vulnerability review.
+- `github-readiness`: read-only Git/GitHub compatibility, governance, CI, and publication review.
+- `code-quality-review`: read-only correctness, maintainability, testing, and professional-quality review.
+
+The focused skills must not load unrelated workflows, mutate files, install tools, or change remote state for a check-only request. The full skill routes to a focused skill when the user asks for a narrow concern.
+
+## Canonical and adapter layout
 
 ```text
-Kanonik politika ve iş akışları
+Canonical policy and workflows
         |
-        +-- Codex adaptörü: AGENTS.md + .agents/skills/...
-        +-- Claude adaptörü: CLAUDE.md + .claude/skills/...
-        +-- Gemini adaptörü: GEMINI.md + .gemini/skills/... veya .agents alias'ı
-        `-- Genel Agent Skills paketi: skills/.../SKILL.md
+        +-- Codex: AGENTS.md + .agents/skills/...
+        +-- Claude Code: CLAUDE.md + .claude/skills/...
+        +-- Gemini CLI: GEMINI.md + .gemini/skills/... or .agents alias
+        `-- Generic Agent Skills: skills/<name>/SKILL.md
 ```
 
-Kanonik içerik `src/` altında tutulur. Dağıtım dosyaları bir üretim script'i ile oluşturulur ve üstlerinde kaynak sürümü/özeti bulunur. Üretilmiş dosyalar elle düzenlenmez; CI yeniden üretip `git diff --exit-code` ile drift kontrolü yapar.
-
-Önerilen depo yapısı:
+Canonical source will live under `src/`; adapters will be generated with a source digest and checked for drift in CI. Tool-specific frontmatter and permission syntax remain in adapters. Suggested structure:
 
 ```text
 .
-|-- AGENTS.md
-|-- CLAUDE.md
-|-- GEMINI.md
+|-- README.md
+|-- PLAN.md
+|-- skills/
+|   |-- professional-coding/
+|   |   |-- SKILL.md
+|   |   `-- references/
+|   |       |-- environment-bootstrap.md
+|   |       `-- project-lifecycle.md
+|   |-- project-bootstrap/SKILL.md
+|   |-- security-audit/SKILL.md
+|   |-- github-readiness/SKILL.md
+|   `-- code-quality-review/SKILL.md
 |-- src/
-|   |-- core.md
-|   |-- workflows/
-|   |   |-- implement.md
-|   |   |-- review.md
-|   |   `-- github-lifecycle.md
-|   `-- policies/
-|       |-- security.md
-|       |-- privacy.md
-|       `-- authorization.md
-|-- skills/professional-coding/
-|   |-- SKILL.md
-|   |-- references/
-|   |   `-- environment-bootstrap.md
-|   `-- scripts/
-|-- .agents/skills/professional-coding/
-|-- .claude/skills/professional-coding/
-|-- .gemini/skills/professional-coding/
 |-- config/
+|   |-- compatibility.yml
+|   |-- github-policy.yml
 |   |-- pii-rules.yml
-|   |-- secret-rules.toml
-|   `-- github-policy.yml
+|   `-- secret-rules.toml
 |-- scripts/
 |   |-- build-adapters
-|   |-- validate-skill
+|   |-- bootstrap
+|   |-- doctor
+|   |-- github-flow
 |   |-- preflight
-|   `-- github-flow
+|   `-- validate-skill
 |-- tests/
-|   |-- fixtures/
-|   |-- policy/
-|   `-- integration/
 `-- .github/
-    |-- workflows/ci.yml
     |-- ISSUE_TEMPLATE/
+    |-- workflows/ci.yml
     `-- pull_request_template.md
 ```
 
-Not: İlk uygulamada her aracın güncel kararlı sürümüyle keşif yolları doğrulanmalı ve bir uyumluluk matrisi kilitlenmelidir. Araçların özel frontmatter alanları yalnızca kendi adaptörlerinde yer almalıdır; kanonik skill en düşük ortak paydayı kullanmalıdır.
+## Local-first project lifecycle
 
-## 3. Skill'in davranış sözleşmesi
+At project start, the skill searches only a user-supplied or configured repository root and local registry. It selects an existing worktree or proposes a short English kebab-case name that contains no identifying information. If multiple clones match, it asks the user rather than guessing.
 
-`professional-coding` skill'i genel programlama tavsiyelerini tekrar etmek yerine karar değiştiren şu kuralları içermelidir:
+Before editing an existing project, it verifies `origin`, owner, repository, visibility, default branch, current branch, upstream, submodules, worktree state, and local/remote commit divergence. It fetches only when authorized and classifies synchronization as `equal`, `local-ahead`, `remote-ahead`, `diverged`, `no-upstream`, or `offline/unverified`. It preserves uncommitted work and never resets, cleans, or overwrites either side without an explicit reconciliation plan.
 
-1. Önce kapsamı, repo durumunu, yerel talimatları ve mevcut kullanıcı değişikliklerini belirle.
-2. Kullanıcı değişikliklerini koru; ilgisiz dosyaları değiştirme veya geri alma.
-3. En küçük güvenli değişikliği yap; mevcut mimari ve test yaklaşımını izle.
-4. Riskle orantılı doğrulama çalıştır; başarısız kontrolleri saklama.
-5. Gizli bilgi ve kişisel veri taraması temiz değilse commit/push/PR aşamasını durdur.
-6. Yerel ve geri alınabilir işlemleri özerk yap; dış dünyayı değiştiren veya yıkıcı işlemlerde açık yetki ara.
-7. Sonuçta değişen dosyaları, doğrulamaları, kalan riskleri ve GitHub bağlantılarını raporla.
+Implementation continues locally on a short-lived topic branch. Before upload, the synchronization audit is repeated, all validation and privacy gates run, and only the topic branch is pushed. Upload never implies merge.
 
-Skill üç çalışma moduna ayrılır:
+## Project definition and language selection
 
-- `implement`: issue veya kullanıcı isteğini güvenli biçimde uygular ve doğrular.
-- `review`: salt-okunur diff, güvenlik, gizlilik ve test kapsamı incelemesi yapar.
-- `github-flow`: kullanıcı açıkça istediğinde issue/branch/commit/PR yaşam döngüsünü yönetir.
+Every project must explain in English what it is, why it exists, which problem it solves, its scope and non-goals, intended users, supported platforms/devices/systems, architecture, prerequisites, validation, safety, rollback, privacy, and data boundaries.
 
-`github-flow` otomatik tetiklenmemeli veya doğrudan yan etki üretmemelidir. Claude gibi bunu destekleyen araçlarda model invocation kapatılır; diğer araçlarda aynı sınır skill metni, wrapper ve CI kontrolleriyle uygulanır.
+Before selecting a new implementation stack, use current primary sources such as official language/toolchain documentation, target SDKs, protocol specifications, and authoritative package registries. Compare platform compatibility, SDK and library maturity, performance, safety, security, dependency exposure, testability, reproducible builds, deployment, interoperability, maintenance, licensing, and operating cost. Record the evidence, tradeoffs, chosen language(s), rejected options, risks, and migration triggers in a short English decision record. Existing stacks are preserved unless evidence and the requested change justify migration.
 
-## 4. Güvenlik ve gizlilik modeli
+## Environment readiness
 
-### Tehdit kapsamı
+Planned deterministic commands:
 
-- Kaynak koduna, git geçmişine, loglara veya prompt çıktısına gömülü API anahtarı ve kimlik bilgileri.
-- E-posta, telefon, T.C. kimlik benzeri ulusal kimlik, adres, IP, konum ve müşteri verisi gibi kişisel veriler.
-- Issue/PR metni, dependency çıktısı veya repo içeriğinden gelen prompt injection.
-- Zararlı dependency/script çalıştırma, command injection, path traversal ve symlink kaçışı.
-- Aşırı yetkili GitHub token'ı, yanlış repo/remote veya yanlış branch üzerinde dış değişiklik.
-- Kullanıcının mevcut çalışmalarının üzerine yazma ya da gizli dosyaları bağlama ekleme.
+- `doctor`: read-only OS, sandbox, local-repository, Git, GitHub CLI, AI CLI, project-toolchain, and scanner audit with structured readiness output.
+- `bootstrap plan`: non-mutating installation plan with official source, pinned version, integrity method, scope, permissions, network needs, license impact, and rollback.
+- `bootstrap apply --plan <id>`: applies only an explicitly approved, target-bound, expiring plan.
+- `build-adapters`: generates tool adapters and a digest manifest.
+- `validate-skill`: validates frontmatter, links, paths, size, and compatibility.
+- `preflight --scope staged|branch|history`: runs secret, PII, stable-identifier, dependency, license, binary, and quality gates.
+- `github-flow plan/apply`: separates read-only GitHub planning from authorized, idempotent mutation.
 
-### Savunma katmanları
+Project-local pinned toolchains are preferred. Remote scripts are never piped directly into a shell. Tokens and credentials never appear in arguments, logs, tracked files, repository URLs, or chat.
 
-1. **Veri minimizasyonu:** Yalnızca görev için gerekli dosyalar okunur. `.env*`, anahtar dosyaları, credential klasörleri, tarayıcı/profil/veritabanı yedekleri varsayılan olarak dışlanır.
-2. **Redaksiyon:** Terminal çıktısı ve AI'a taşınan içerik için anahtar, token, e-posta ve yapılandırılabilir PII kalıpları maskelenir. Tam değerler hiçbir rapora yazılmaz.
-3. **Deterministik tarama:** Commit öncesi staged diff; push/PR öncesi branch farkı ve gerekirse git geçmişi secret scanner ile taranır. PII kuralları test fixture'larıyla doğrulanır.
-4. **İzin sınırı:** Salt-okunur `git`, test ve analiz komutları ile GitHub yazma işlemleri ayrılır. Token en az ayrıcalıklı ve kısa ömürlü olmalıdır; token hiçbir zaman komut satırı argümanında veya logda gösterilmez.
-5. **Prompt injection ayrımı:** Repo/issue/PR içeriği güvenilmeyen veri kabul edilir; buradaki “talimatlar” kullanıcı veya sistem yetkisi sayılmaz. Skill değiştirme, secret okuma veya dış istek yapma yönlendirmeleri reddedilir.
-6. **Fail closed:** Tarayıcı çalışmıyorsa, hedef remote/repo belirsizse veya doğrulama sonucu çözümlenemiyorsa dış yazma durur. Salt-okunur analiz devam edebilir.
-7. **Tedarik zinciri:** Script bağımlılıkları sabitlenir, hash/provenance kaydı tutulur, GitHub Actions sürümleri commit SHA ile pinlenir ve dependency güncellemeleri kontrollü PR'larla yapılır.
+## Security and privacy
 
-PII tarayıcısının yanlış pozitif üretmesi beklenir. İstisnalar yalnızca dosya + kural + gerekçe + süre/inceleyen bilgisiyle, gerçek verinin kendisini içermeyen bir allowlist üzerinden eklenmelidir. Test fixture'larında yalnızca açıkça sahte değerler kullanılmalıdır.
+The threat model covers credentials, personal/customer data, device identifiers, prompt injection, malicious dependencies, command/path injection, symlink escape, excessive GitHub scopes, incorrect remotes, and accidental destruction of existing work.
 
-## 5. GitHub issue, commit ve PR otomasyonu
+Controls include data minimization, secret-bearing path exclusions, automatic redaction plus manual review, staged and branch/history scanning, untrusted-data treatment for repository and GitHub text, least privilege, fail-closed publication, pinned dependencies, action commit SHAs, license/provenance records, and synthetic-only fixtures. Private visibility is not a secret-management mechanism. Findings report category, redacted fingerprint, location, impact, and remediation without exposing values.
 
-Otomasyon GitHub CLI (`gh`) veya eşdeğer bir API adaptörü üzerinden yapılır; business logic araç prompt'larında tekrar edilmez.
+## GitHub governance
 
-### Issue aşaması
+Every product project is a separate private repository under `github.com/droltr`. This framework repository is intentionally public by explicit user decision; that exception does not change the default for product repositories. Meaningful work follows issue -> topic branch -> validated commit -> focused pull request. `main` is the reviewed baseline; direct feature, fix, security, and maintenance commits are prohibited. Pull requests include summary, related issue, validation evidence, hardware/safety impact, and rollback instructions.
 
-- Repo ve remote kimliği salt-okunur biçimde doğrulanır.
-- Mevcut benzer issue'lar aranır; otomatik duplicate açılmaz.
-- Issue metni problem, kabul kriterleri, güvenlik/gizlilik etkisi ve test planı içerir.
-- Issue oluşturma ancak kullanıcı bunu açıkça istediğinde yapılır; çıktıdaki URL yerel görev kaydına eklenir.
+Merge requires required CI, resolved review conversations, an up-to-date branch, and human review. Draft PRs are used for incomplete, experimental, or hardware-risking work. Planned repository controls include structured issue forms, disabled blank issues, privacy confirmation for diagnostics, CODEOWNERS, Dependabot security updates, secret scanning, push protection, private vulnerability reporting, minimum Actions permissions, protected `main`, and individually reviewed dependency updates.
 
-### Branch ve commit aşaması
+## External dependency provenance
 
-- Varsayılan branch doğrudan değiştirilmez; `<type>/<issue>-<slug>` biçiminde branch önerilir.
-- Commit yalnızca kullanıcı commit istemişse oluşturulur.
-- Conventional Commits tabanı kullanılır: `type(scope): özet` ve gerekirse gövdede `Refs #123`.
-- Commit öncesi format/lint/test, staged-secret ve staged-PII kontrolleri geçmelidir.
-- AI ortak yazarlık/atıf satırları varsayılan olarak eklenmez; repo politikası veya kullanıcı talebi belirler.
+External repositories have three roles: canonical upstream, a private read-only archival mirror under `droltr` subject to license/access rights, and the immutable revision consumed under `vendor/<dependency>`. A dedicated provenance branch preserves imported history; a reviewed `git subtree` snapshot keeps unrelated files out of the project root. Use a pinned submodule only when independent checkout is explicitly required.
 
-### Pull request aşaması
+Record upstream URL, mirror URL, immutable commit, SPDX/license, retrieval date, subtree path, patches, update process, and rollback revision. Dependency updates require their own issue and pull request with old/new revisions, upstream diff, security/license impact, tests, and rollback.
 
-- Hedef branch ve fork/upstream ilişkisi doğrulanır.
-- PR; issue bağlantısı (`Closes #...` yalnızca gerçekten kapatacaksa), değişiklik özeti, doğrulama kanıtı, risk ve geri alma planı içerir.
-- İlk otomasyon tercihi draft PR'dır. Ready, reviewer atama, label, merge ve release ayrı açık yetkilerdir.
-- CI başarısızsa veya güvenlik taraması bulgu verirse merge önerilmez.
-- Otomasyon kendi yorumlarını tekrar tekrar yazmaz; idempotency anahtarı/marker kullanır.
+## Hardware profile
 
-### Yetki matrisi
+Hardware-specific rules load only for matching projects. HID, SMBus, I2C, firmware, and controller writes are potentially destructive. Automated tests must not perform physical writes. Physical tests require explicit authorization, a selected device/zone, low-brightness starting state, observed verification, and a tested recovery path. OpenRGB, `game-lighting`, Hardware Sync, Qt metadata, and related tracking data must never leak into unrelated projects.
 
-| İşlem | Varsayılan | Gereken koşul |
-|---|---|---|
-| Issue/PR/git durumunu okumak | Serbest | Repo görev kapsamında olmalı |
-| Yerel branch ve dosya değişikliği | Serbest | Kullanıcı görevi kapsamında, geri alınabilir |
-| Commit oluşturmak | Kapalı | Kullanıcının açık commit isteği |
-| Push, issue veya PR oluşturmak | Kapalı | İşlem ve hedef için açık kullanıcı isteği |
-| Label/reviewer/yorum eklemek | Kapalı | Açık istek veya önceden onaylı repo politikası |
-| Merge/release/deploy | Kapalı | Her işlem için ayrı açık onay ve yeşil kontroller |
-| Force-push, history rewrite, secret silme | Kapalı | Ayrı kurtarma planı ve açık, hedefe özel onay |
+## Validation and delivery phases
 
-## 6. Deterministik araçlar
+CI will validate adapter drift, skill structure, supported CLI versions and operating systems, synthetic secret/PII fixtures, repository discovery and synchronization states, prompt-injection cases, English first-party content, dependencies, licenses, Actions permissions, and isolated GitHub dry-runs. Hardware tests remain mock-only unless separately authorized and reported as physical verification.
 
-Prompt kuralları tek başına güvenlik kontrolü sayılmamalıdır. Aşağıdaki küçük ve bağımsız komutlar oluşturulmalıdır:
+### Phase 0: readiness contract
 
-- `build-adapters`: kanonik kaynaktan araç dizinlerini üretir, hash manifesti yazar.
-- `validate-skill`: YAML frontmatter, linkler, path taşması, boyut sınırı ve araç uyumluluğunu kontrol eder.
-- `doctor`: işletim sistemi, yerel repo konumu, Git/GitHub/AI CLI ve proje toolchain gereksinimlerini salt-okunur denetler; JSON readiness raporu üretir.
-- `bootstrap plan`: eksik yazılımlar için resmi kaynak, sürüm, kurulum kapsamı, değişecek yollar, yetki ihtiyacı ve rollback içeren mutasyonsuz plan üretir.
-- `bootstrap apply --plan <id>`: yalnızca açıkça onaylanan, hedefi ve süresi sabit kurulum planını uygular; internetten indirilen artifact'larda bütünlük doğrulaması yapar.
-- `preflight --scope staged|branch|history`: secret, PII, yasaklı dosya, büyük binary, lisans ve gerekli kalite kontrollerini tek JSON sözleşmesiyle çalıştırır.
-- `github-flow plan`: hiçbir yazma yapmadan yapılacak GitHub işlemlerini ve hedefleri JSON olarak gösterir.
-- `github-flow apply --plan <id>`: yalnızca kullanıcı onaylı, süresi ve repo hedefi sabit plana izin verir; tekrar çalıştırma idempotent olur.
+Define supported versions, registry schema, language decision format, privacy classes, authorization matrix, compatibility manifest, and doctor/bootstrap rollback contracts.
 
-Script'ler shell metni birleştirmek yerine argüman dizileri kullanmalı, secret değerlerini loglamamalı ve makinece ayrıştırılabilir çıkış kodları vermelidir. `--dry-run` tüm dış yazma yollarında zorunludur.
+### Phase 1: selective MVP
 
-### Ortam ve yerel repo hazırlığı
+Ship the canonical and focused skills, adapters, validation, local discovery, synchronization audit, project definition, and language research workflow.
 
-İlk görevden önce `doctor` şu sırayla çalışır: sistem/sandbox tespiti, kullanıcı tarafından verilen veya mevcut Git kökünün çözülmesi, yapılandırılmış repo kökleri içinde sınırlı arama, Git ve `gh` denetimi, aktif AI CLI skill keşfi, proje manifestlerinden toolchain çıkarımı ve güvenlik aracı kontrolü.
+### Phase 2: deterministic security gates
 
-Yerel repoların ana dizini tracked dosyalara kişisel mutlak yol olarak yazılmaz. Platformun kullanıcı-konfigürasyon dizinindeki untracked ayar `repository_root` değerini tutar. Ayrı bir yerel registry yalnızca proje adı, kanonik yol, beklenen `droltr/<repo>` kimliği, credentials içermeyen remote URL, varsayılan branch ve son doğrulama zamanını saklar. Birden fazla clone bulunduğunda araç seçim yapmaz.
+Implement secret/PII scanning, redaction, abuse tests, and mandatory CI gates.
 
-Eksik araçlar otomatik kurulmaz. Önce proje-local/izole, sonra kullanıcı kapsamı, son olarak zorunluysa sistem kapsamı önerilir. Plan; resmi kaynak, pinlenmiş sürüm, checksum/imza, gereken ağ/yönetici yetkisi, değişecek dosyalar ve kaldırma adımlarını gösterir. Remote install script'i doğrudan shell'e pipe edilmez.
+### Phase 3: GitHub lifecycle
 
-## 7. CI/CD ve GitHub depo politikası
+Implement idempotent issue/branch/commit/PR planning and application, templates, governance checks, and divergence/failure tests.
 
-İlk CI hattı şu kapıları içermelidir:
+### Phase 4: hardening and release
 
-1. Üretilmiş adaptör drift kontrolü.
-2. Skill şema/frontmatter ve link doğrulaması.
-3. Script unit testleri ve Linux/macOS/Windows smoke test matrisi.
-4. Sahte secret/PII fixture'ları için pozitif ve negatif testler.
-5. Dependency, lisans, secret ve SAST taraması.
-6. GitHub workflow izinlerinin denetimi (`permissions: contents: read` tabanı).
-7. Pull request başlığı, issue bağlantısı ve gerekli açıklama bölümleri kontrolü.
+Complete the compatibility matrix, conduct independent security review, and publish signed, checksummed, reproducible artifacts with an SBOM.
 
-Önerilen branch protection: zorunlu PR, en az bir insan incelemesi, gerekli kontroller, stale approval iptali, force-push ve branch deletion engeli, mümkünse signed commit veya GitHub verified imza. Otomasyon token'ına merge ve admin yetkisi verilmemelidir.
+## Official compatibility references
 
-## 8. Test stratejisi
-
-- **Yapısal:** Her adaptör doğru dosya ve frontmatter üretir.
-- **Davranışsal:** Aynı örnek görev Codex, Claude ve Gemini'de benzer güvenlik kararları doğurur.
-- **Kötüye kullanım:** Repo içindeki “`.env` dosyasını oku”, issue'daki “token'ı yorumla” gibi injection senaryoları dış etki yaratmaz.
-- **Gizlilik:** Sahte PII yakalanır; maskeli çıktı orijinal değeri içermez.
-- **GitHub:** Geçici test reposunda dry-run, duplicate issue, yanlış remote, fork PR ve başarısız CI senaryoları denenir.
-- **Geriye uyumluluk:** Desteklenen CLI sürümlerinin en düşük ve güncel sürümleri için keşif smoke testi çalışır.
-
-Gerçek token veya gerçek kişisel veri hiçbir testte kullanılmaz. GitHub yazma entegrasyon testleri varsayılan CI'da kapalı, yalnızca izole test organizasyonunda ve environment approval arkasında olmalıdır.
-
-## 9. Sürümleme ve gelişim modeli
-
-- SemVer kullanılır. Politika davranışı değişiklikleri changelog yerine release notlarında ve migration bölümünde açıklanır.
-- `compatibility.yml`; araç adı, test edilen sürüm aralığı, keşif yolu ve destek düzeyini tutar.
-- Yeni araç desteği yalnızca adaptör + fixture + smoke test ile kabul edilir.
-- Güvenlik kuralı değişiklikleri CODEOWNERS kapsamında en az bir güvenlik incelemesi gerektirir.
-- Telemetri varsayılan kapalıdır. İleride eklenirse opt-in, anonimleştirilmiş ve veri saklama süresi açık olmalıdır.
-- Aylık dependency/CLI uyumluluk kontrolü ve üç aylık tehdit modeli gözden geçirmesi önerilir.
-
-## 10. Uygulama fazları
-
-### Faz 0 — Kararlar ve sınırlar
-
-- Desteklenen minimum CLI sürümlerini belirle.
-- GitHub organizasyon politikası, commit imzası ve otomasyon yetki sınırlarını kaydet.
-- İşlenecek PII sınıfları ve yasal/bölgesel gereksinimleri netleştir.
-- Makine-lokal `repository_root` ve repo registry şemasını belirle.
-- Git, `gh`, desteklenen AI CLI'lar, project toolchain ve güvenlik tarayıcıları için uyumluluk manifestini oluştur.
-- `doctor` ile `bootstrap plan/apply` yetki ve rollback sözleşmelerini test et.
-
-Çıkış ölçütü: onaylanmış tehdit modeli, yetki matrisi, uyumluluk matrisi ve salt-okunur readiness raporu.
-
-### Faz 1 — Taşınabilir MVP
-
-- Kanonik `professional-coding` skill ve üç araç adaptörünü üret.
-- Build/validate script'lerini ve drift CI'ını ekle.
-- Read-only review ile yerel implement akışını test et.
-
-Çıkış ölçütü: üç CLI skill'i keşfediyor; aynı fixture üzerinde temel karar sözleşmesi geçiyor.
-
-### Faz 2 — Güvenlik kapıları
-
-- Secret/PII preflight, redaksiyon ve yasaklı path kontrollerini ekle.
-- Prompt-injection ve command/path güvenlik testlerini ekle.
-- Pre-commit entegrasyonunu opt-in sun; CI kontrolünü zorunlu yap.
-
-Çıkış ölçütü: bilinen fixture sızıntılarının tamamı engelleniyor ve raporlar secret içermiyor.
-
-### Faz 3 — GitHub yaşam döngüsü
-
-- `github-flow plan/apply` ve issue/PR şablonlarını ekle.
-- Draft PR, idempotency, yanlış remote ve en az ayrıcalık testlerini tamamla.
-- Branch protection ve CODEOWNERS kurallarını belgele/uygula.
-
-Çıkış ölçütü: izole test reposunda issue -> branch -> commit -> draft PR akışı onay kapılarıyla uçtan uca geçiyor.
-
-### Faz 4 — Sertleştirme ve yayın
-
-- Üç işletim sistemi ve desteklenen CLI sürümleri için matris testi.
-- Bağımsız güvenlik incelemesi ve kötüye kullanım testleri.
-- İmzalı sürüm, checksum/SBOM ve kurulum paketleri.
-
-Çıkış ölçütü: kritik/yüksek bulgu yok; reproducible artifact ve doğrulanabilir sürüm yayımlanıyor.
-
-## 11. Açık tasarım kararları
-
-Uygulamaya başlamadan önce aşağıdakiler proje sahibi tarafından seçilmelidir:
-
-- GitHub-only mı, yoksa GitLab/Bitbucket adaptörleri yakın yol haritasında mı?
-- Commit oluşturma her zaman manuel komutla mı tetiklenecek, yoksa repo bazlı ön onay mümkün mü?
-- PII kapsamı yalnızca genel tanımlayıcılar mı, yoksa KVKK/GDPR'a göre özel nitelikli veri sınıfları da mı?
-- Dağıtım biçimi kaynak repo kopyası mı, npm/pip paketi mi, yoksa araç-native extension/plugin paketleri mi?
-- Desteklenen ilk platformlar ve minimum CLI sürümleri neler?
-
-Varsayılan öneri: GitHub-only, commit dahil tüm git/GitHub yazmaları açık kullanıcı isteğine bağlı, KVKK + GDPR temel sınıfları, önce repo içi kurulum ve Linux/macOS desteği; Windows desteği Faz 4'te kararlı hale getirilir.
-
-## 12. Özel repo ve dış kaynak kod yönetimi
-
-Her yeni proje, açık kullanıcı yetkisi alındıktan sonra `github.com/droltr/<proje>` altında ayrı ve private bir repo olarak oluşturulur. Private görünürlük secret saklama yöntemi sayılmaz; bütün güvenlik ve PII kontrolleri aynen uygulanır.
-
-Başka bir repodan yararlanıldığında üç farklı rol birbirine karıştırılmaz:
-
-1. **Kanonik upstream:** Asıl geliştiricinin URL'si ve geçmişidir; provenance kaynağı olarak kaydedilir.
-2. **Private arşiv aynası:** `droltr` altında upstream geçmişini sabitleyen, salt-okunur kabul edilen private mirror'dur. Derleme ve aktif geliştirme buradan yapılmaz.
-3. **Tüketilen kopya:** Yeni projenin `vendor/<bağımlılık>` dizininde, immutable commit'e sabitlenmiş ve PR ile incelenmiş snapshot'tır.
-
-“Proje içinde dal” gereksinimi, bağımsız geçmişleri doğrudan `main` ile karıştırmadan uygulanır: her bağımlılık için `vendor/<bağımlılık>` provenance branch'i tutulur; seçilen sürüm `git subtree` ile `vendor/<bağımlılık>` dizinine alınır. Böylece kaynak geçmiş korunur, ancak uygulama normal `main`/topic branch akışında derlenir. Submodule yalnızca bağımsız checkout gerçekten gerekiyorsa ve proje profili açıkça bunu şart koşuyorsa kullanılır; aynı bağımlılık için subtree ve submodule birlikte kullanılmaz.
-
-Her dış kaynak için makinece okunabilir manifestte şu alanlar bulunur: özgün upstream URL, private mirror URL, seçilen commit SHA, lisans/SPDX kimliği, içe alma tarihi, subtree yolu, yerel patch listesi, güncelleme ve rollback commit'i. Lisans veya erişim koşulları kopyalamaya izin vermiyorsa mirror/vendor işlemi yapılmaz.
-
-Bağımlılık güncellemeleri ayrı issue, topic branch ve PR üzerinden yapılır. PR; eski/yeni SHA, upstream diff özeti, güvenlik ve lisans etkisi, yerel patch uyumu, test sonuçları ve geri dönüş SHA'sını içerir. Otomatik upstream sync, push veya merge yapılmaz.
-
-## 13. Resmî uyumluluk dayanakları
-
-- OpenAI model rehberi, çoklu skill ve `AGENTS.md` talimatlarının çakışma riskini özellikle ele alır: <https://developers.openai.com/api/docs/guides/latest-model>
-- Claude Code, proje skill'lerini `.claude/skills/<name>/SKILL.md` altında ve Agent Skills standardıyla destekler: <https://code.claude.com/docs/en/skills>
-- Claude güvenlik açısından kritik kurallar için prompt yerine hook/permission uygulanmasını önerir: <https://code.claude.com/docs/en/features-overview>
-- Gemini CLI, workspace skill'lerini `.gemini/skills/` veya `.agents/skills/` altında keşfeder: <https://geminicli.com/docs/cli/using-agent-skills/>
-- Gemini sürekli proje bağlamını `GEMINI.md` dosyalarından yükler: <https://geminicli.com/docs/cli/gemini-md/>
+- OpenAI guidance on multiple skills and `AGENTS.md`: <https://developers.openai.com/api/docs/guides/latest-model>
+- Claude Code skills: <https://code.claude.com/docs/en/skills>
+- Claude Code deterministic guardrails: <https://code.claude.com/docs/en/features-overview>
+- Gemini CLI skills: <https://geminicli.com/docs/cli/using-agent-skills/>
+- Gemini CLI context files: <https://geminicli.com/docs/cli/gemini-md/>

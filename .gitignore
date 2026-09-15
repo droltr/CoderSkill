@@ -1,0 +1,17 @@
+# Machine-local project context and repository registry
+.coderskill/local/
+.coderskill/*.local.*
+
+# Credentials, environment files, and diagnostics
+.env
+.env.*
+*.pem
+*.key
+diagnostics/
+artifacts/
+
+# Common local caches
+.venv/
+node_modules/
+__pycache__/
+.pytest_cache/

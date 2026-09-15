@@ -45,6 +45,8 @@ Before accepting a registry entry, canonicalize the path, reject symlink escapes
 
 If multiple clones match, do not guess. Report redacted candidate paths and ask the user to choose before editing.
 
+After resolving the repository, follow `project-lifecycle.md` to audit GitHub synchronization before editing.
+
 ## 3. Audit required software
 
 Build the required-tool set from the task and project files. Do not install every supported AI CLI preemptively.
