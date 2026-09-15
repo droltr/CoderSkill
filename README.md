@@ -75,7 +75,6 @@ Inside a project directory, tell the active AI coding tool:
 execute order 66
 ```
 
-The phrase is only a mnemonic for the safe workflow and never authorizes destructive actions, credential use, security bypasses, or hardware writes.
 
 The `professional-coding` skill then classifies the directory, reads its scope and local rules, selects only applicable focused skills, validates the environment and synchronization, and continues through issue, branch, implementation, tests, security checks, and pull-request preparation. It pauses only for a missing material decision, credentials, physical hardware writes, or irreversible security remediation.
 
