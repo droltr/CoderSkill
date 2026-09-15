@@ -1,0 +1,27 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate shell scripts
+        run: bash -n scripts/*.sh scripts/validate-* scripts/doctor
+      - name: Validate adapters
+        run: scripts/build-adapters --check
+      - name: Validate project profile and lesson examples
+        run: |
+          scripts/validate-project-profile .coderskill/project.yml.example
+          scripts/validate-lesson knowledge/lesson.example.yml
+      - name: Check patch formatting
+        run: git diff --check
