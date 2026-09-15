@@ -28,7 +28,7 @@ The current repository contains the initial implementation plan and a canonical 
 
 ## Current status
 
-This is an early planning and policy baseline. Deterministic `doctor`, `bootstrap`, `preflight`, adapter-generation, and GitHub lifecycle scripts are planned but not yet implemented. Do not treat prompt instructions alone as a security boundary.
+The initial implementation is available on `main`. It includes the read-only environment doctor, adapter generation and drift checks, passive security audit, project-profile and lesson validation, governance templates, least-privilege CI, and deterministic tests. Full GitHub lifecycle mutation remains deliberately review-gated; prompt instructions alone are never a security boundary.
 
 See [PLAN.md](PLAN.md) for the architecture, delivery phases, and validation strategy. The canonical skill is [skills/professional-coding/SKILL.md](skills/professional-coding/SKILL.md).
 
@@ -84,23 +84,20 @@ For a check-only request, explicitly say “do not modify files, commit, push, o
 
 ## Current command availability
 
-The repository currently contains policy files and skill definitions. These deterministic commands are planned, not yet available:
+The following deterministic commands are available:
 
 ```bash
-doctor
-bootstrap plan
-preflight --scope staged
-github-flow plan
+scripts/doctor
+scripts/build-adapters --check
+scripts/security-audit --format json .
+scripts/validate-project-profile .coderskill/project.yml.example
+scripts/validate-lesson knowledge/lesson.example.yml
 ```
 
-Do not run those commands until the implementation phase adds their scripts. The currently available structural validation is:
+The broader `bootstrap`, `preflight`, and `github-flow` commands remain planned and are not available yet. The test suite can be run with:
 
 ```bash
-python3 path/to/quick_validate.py skills/security-audit
-python3 path/to/quick_validate.py skills/github-readiness
-python3 path/to/quick_validate.py skills/code-quality-review
-python3 path/to/quick_validate.py skills/project-bootstrap
-python3 path/to/quick_validate.py skills/professional-coding
+python3 -m unittest discover -s tests -v
 ```
 
 ## Privacy
