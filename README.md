@@ -89,12 +89,13 @@ The following deterministic commands are available:
 ```bash
 scripts/doctor
 scripts/build-adapters --check
-scripts/security-audit --format json .
+scripts/security-audit --format json --root .
+scripts/preflight --scope branch
 scripts/validate-project-profile .coderskill/project.yml.example
 scripts/validate-lesson knowledge/lesson.example.yml
 ```
 
-The broader `bootstrap`, `preflight`, and `github-flow` commands remain planned and are not available yet. The test suite can be run with:
+The broader `bootstrap` and `github-flow` commands remain planned and are not available yet. The test suite can be run with:
 
 ```bash
 python3 -m unittest discover -s tests -v
