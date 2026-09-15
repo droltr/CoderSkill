@@ -4,6 +4,13 @@ This file records user-visible changes and durable workflow or security decision
 
 ## Unreleased
 
+### v0.2 hardening
+
+- Add scope-aware staged, branch, and history preflight checks.
+- Add dependency component metadata and deterministic checksum verification for release manifests.
+- Add explicit identity-gated GitHub flow and approval-gated bootstrap application modes.
+- Record the independent security review and its residual defense-in-depth risks.
+
 ### Security and identity
 
 - Require an explicit confirmation of the active GitHub account and target repository before an AI agent starts implementation or performs remote mutation.
@@ -12,7 +19,7 @@ This file records user-visible changes and durable workflow or security decision
 
 ### Workflow
 
-- Support `execute order 66` and `projeye başla` as equivalent safe project-start triggers.
+- Use `execute order 66` as the single safe project-start trigger.
 - Keep CoderSkill outside target projects when using the system-wide `coderskill` command.
 - Select only focused skills enabled by the project profile.
 

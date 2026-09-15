@@ -20,6 +20,10 @@ This record summarizes durable decisions and delivered work from the initial pro
 - Visible execution status protocol.
 - CODEOWNERS, Dependabot, pull-request template, least-privilege CI, and deterministic tests.
 
-## Open follow-up
+## Completion state
 
-Issue #3, #4, #5, and #13 remain tracked for follow-up or reconciliation. Dependabot pull requests are reviewed separately and are not auto-merged.
+The v0.2 hardening milestone is complete. Issues #52–#57 and their pull requests were completed, validated, and closed. No open pull requests or issues remain at the time of this record. Dependabot pull requests are reviewed separately and are not auto-merged.
+
+## Session close procedure
+
+Before an agent session ends, record completed work, unresolved requests, validation results, blockers, and the exact next action in this file or the target project's equivalent session record. Never record credentials, personal data, local paths, hostnames, serial numbers, or unredacted diagnostics.
