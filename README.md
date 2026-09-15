@@ -50,6 +50,22 @@ For an authorized in-scope workflow, the assistant continues through routine imp
 
 ## Usage
 
+Inside a project directory, tell the active AI coding tool:
+
+```text
+execute order 66
+```
+
+`projeye başla` remains an equivalent Turkish trigger. The phrase is only a mnemonic for the safe workflow and never authorizes destructive actions, credential use, security bypasses, or hardware writes.
+
+The `professional-coding` skill then classifies the directory, reads its scope and local rules, selects only applicable focused skills, validates the environment and synchronization, and continues through issue, branch, implementation, tests, security checks, and pull-request preparation. It pauses only for a missing material decision, credentials, physical hardware writes, or irreversible security remediation.
+
+For a read-only terminal preview of this start process:
+
+```bash
+scripts/coderskill-start
+```
+
 The focused skills are designed to be invoked by name after they have been installed or linked into the active tool's documented skill directory. Use the smallest skill that matches the request:
 
 ```text

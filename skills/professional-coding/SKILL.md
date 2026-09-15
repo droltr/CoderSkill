@@ -50,6 +50,23 @@ Before starting work in a new environment, opening or creating a local repositor
 
 Before creating a project or resuming work that may have a remote counterpart, read [references/project-lifecycle.md](references/project-lifecycle.md). Use it to select the local project, synchronize safely, document the project purpose, research the implementation language, and publish reviewed work at completion.
 
+## One-Line Project Start
+
+When the user says `execute order 66`, `projeye başla`, or clearly equivalent wording while working inside a project directory, treat it as an authorized request to start or resume the full workflow. `execute order 66` is only a mnemonic trigger for this safe workflow; it never authorizes destructive actions, credential use, security bypasses, or hardware writes:
+
+1. Inspect only the current project directory and its repository metadata; never search broad personal directories without a configured root.
+2. Classify the directory as empty, an existing non-Git project, or an existing Git project.
+3. For an empty project, learn the stated purpose and constraints before selecting a language or creating implementation files.
+4. For an existing project, read its README, local instructions, project profile, tracked configuration, open work, and current tests before editing.
+5. Verify the local repository, remote identity, synchronization, required tools, and applicable privacy/security gates.
+6. Select the smallest set of focused skills from `active_profiles`; do not load unrelated skills.
+7. Record or update the English project purpose, scope, non-goals, platform, language decision, and risks.
+8. Create or reference a GitHub issue, use a short-lived topic branch, preserve the verified behavior of `main`, and implement the remaining in-scope work.
+9. Run applicable tests, preflight, security, quality, and publication checks; do not claim hardware verification from mocks.
+10. Prepare a focused commit and pull request with validation, safety impact, and rollback details. Do not merge unless required checks pass.
+
+Pause only for missing purpose or a decision that cannot be inferred safely, credentials, external authorization not already granted, physical hardware writes, sensitive security remediation, or destructive/irreversible actions. Routine checkpoints do not require confirmation.
+
 ## Repository Development Decisions
 
 - Treat `main` as the reviewed and working production baseline.
