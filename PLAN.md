@@ -4,6 +4,8 @@
 
 CoderSkill provides a portable, auditable, and versioned professional coding policy for Codex, Claude Code, Gemini CLI, and other tools that support Agent Skills. It standardizes local-first development, environment readiness, language selection, privacy, security, GitHub governance, dependency provenance, and conditional hardware safety.
 
+Durable user-visible changes and security/workflow decisions are recorded in [RELEASE_NOTES.md](RELEASE_NOTES.md), including retroactive v0.1 foundation decisions.
+
 ## Language policy
 
 All first-party repository content must be written in clear, concise, professional English: source code, identifiers, comments, documentation, configuration descriptions, branch names, commits, issues, pull requests, release notes, and publishable logs. The AI assistant communicates with the user in Turkish unless another language is requested. Third-party vendored code and immutable historical records are not rewritten only for translation.
