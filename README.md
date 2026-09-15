@@ -28,7 +28,7 @@ The current repository contains the initial implementation plan and a canonical 
 
 ## Current status
 
-The initial implementation is available on `main`. It includes the read-only environment doctor, adapter generation and drift checks, passive security audit, project-profile and lesson validation, governance templates, least-privilege CI, and deterministic tests. Full GitHub lifecycle mutation remains deliberately review-gated; prompt instructions alone are never a security boundary.
+The hardened implementation is available on `main`. It includes read-only environment and preflight checks, adapter drift validation, passive security auditing, dependency metadata and SPDX release manifests, checksum verification, identity-gated GitHub flow operations, approval-gated bootstrap operations, governance templates, least-privilege CI, and CodeQL scanning. Remote mutations remain fail-closed and require explicit authorization; prompt instructions alone are never a security boundary.
 
 See [PLAN.md](PLAN.md) for the architecture, delivery phases, and validation strategy. The canonical skill is [skills/professional-coding/SKILL.md](skills/professional-coding/SKILL.md).
 See [RELEASE_NOTES.md](RELEASE_NOTES.md) for versioned changes and durable workflow/security decisions.
@@ -48,8 +48,6 @@ The assistant uses a visible status marker at the start of every progress or fin
 `IN_PROGRESS` means work is continuing. `WAITING_FOR_USER` names the exact answer or approval required. `BLOCKED` is reserved for a verified blocker after safe alternatives were checked. `COMPLETE` is used only after the requested scope and validation are finished.
 
 For an authorized in-scope workflow, the assistant continues through routine implementation phases without pausing for unnecessary confirmation. It pauses only for material scope changes, destructive or irreversible actions, credentials, physical hardware writes, security-sensitive external mutations, or decisions that cannot be inferred safely.
-
-## Usage
 
 ## Installation
 
@@ -145,13 +143,16 @@ scripts/doctor
 scripts/bootstrap plan
 scripts/build-adapters --check
 scripts/github-flow plan --issue 123 --kind feature
+scripts/github-flow apply --issue 123 --kind feature
+scripts/release-manifest --output /tmp/coderskill-release.json
+scripts/release-verify /tmp/coderskill-release.json
 scripts/security-audit --format json --root .
 scripts/preflight --scope branch
 scripts/validate-project-profile .coderskill/project.yml.example
 scripts/validate-lesson knowledge/lesson.example.yml
 ```
 
-Mutation subcommands for `bootstrap` and `github-flow` remain intentionally unavailable until an explicit reviewed operation is authorized. The test suite can be run with:
+Mutation subcommands for `bootstrap` and `github-flow` are available only with explicit, target-bound authorization and fail closed otherwise. The test suite can be run with:
 
 ```bash
 python3 -m unittest discover -s tests -v
