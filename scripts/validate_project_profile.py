@@ -9,7 +9,7 @@ import re
 from pathlib import Path
 
 
-REQUIRED = {"schema", "project_id", "repository", "default_branch", "artifact_language", "user_communication_language", "active_profiles"}
+REQUIRED = {"schema", "project_id", "repository", "default_branch", "artifact_language", "user_communication_language", "system_language_suggestion", "active_profiles"}
 IDENTIFIER = re.compile(r"^[a-z0-9][a-z0-9-]{0,62}$")
 
 
@@ -36,8 +36,10 @@ def validate(data: dict) -> list[str]:
         errors.append("default_branch must be main")
     if data.get("artifact_language") != "english":
         errors.append("artifact_language must be english")
-    if data.get("user_communication_language") != "turkish":
-        errors.append("user_communication_language must be turkish")
+    if not re.fullmatch(r"[a-z]{2,3}(?:-[A-Z]{2})?", str(data.get("user_communication_language", ""))):
+        errors.append("user_communication_language must be a language tag")
+    if data.get("system_language_suggestion") != "auto":
+        errors.append("system_language_suggestion must be auto")
     if not isinstance(data.get("active_profiles"), list) or not all(isinstance(item, str) for item in data.get("active_profiles", [])):
         errors.append("active_profiles must be a list of strings")
     return errors

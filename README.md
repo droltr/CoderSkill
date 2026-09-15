@@ -20,7 +20,7 @@ The current repository contains the initial implementation plan and a canonical 
 - Environment readiness and safe software-installation planning.
 - Local repository discovery and GitHub synchronization audits.
 - Evidence-based programming-language and toolchain selection.
-- English-only repository artifacts and Turkish user communication.
+- English-only repository artifacts and selectable user communication language (English by default; system language suggested).
 - Issue, branch, commit, and pull-request governance.
 - Secret, personal-data, and stable-identifier protection.
 - External dependency provenance and private archival mirrors.
@@ -51,6 +51,24 @@ For an authorized in-scope workflow, the assistant continues through routine imp
 
 ## Usage
 
+## Installation
+
+Clone CoderSkill once outside product repositories and install its adapters for the terminal tools you use:
+
+```bash
+git clone https://github.com/droltr/CoderSkill.git
+cd CoderSkill
+scripts/coderskill install
+```
+
+The installer writes only to the user skill directories and user command directory. It does not copy CoderSkill into a target project and does not overwrite existing skills unless `--update` is supplied:
+
+```bash
+scripts/coderskill install --update
+```
+
+## Start or resume a project
+
 Inside a project directory, tell the active AI coding tool:
 
 ```text
@@ -66,6 +84,26 @@ For a read-only terminal preview of this start process:
 ```bash
 scripts/coderskill-start
 ```
+
+To run a selected terminal agent from any project directory:
+
+```bash
+coderskill start execute order 66 --agent codex --run
+```
+
+You may provide the real GitHub target explicitly:
+
+```bash
+coderskill start execute order 66 \\
+  --agent codex \\
+  --github https://github.com/droltr/your-real-repository \\
+  --confirm-account \\
+  --run
+```
+
+If `--github` is omitted, the local `origin` URL is used. Placeholder targets such as `droltr/your-project` are rejected. Before `--run`, CoderSkill displays the active GitHub account and target repository; review them and pass `--confirm-account` only when they are correct. A mismatch stops the operation.
+
+For an empty directory, enter it and run the same command. The agent first learns the purpose, scope, platform, constraints, and communication-language preference before creating project files. It then creates or references an issue, selects only applicable skills, and continues on a topic branch. CoderSkill remains outside the project directory.
 
 The focused skills are designed to be invoked by name after they have been installed or linked into the active tool's documented skill directory. Use the smallest skill that matches the request:
 

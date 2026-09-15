@@ -8,7 +8,7 @@ Durable user-visible changes and security/workflow decisions are recorded in [RE
 
 ## Language policy
 
-All first-party repository content must be written in clear, concise, professional English: source code, identifiers, comments, documentation, configuration descriptions, branch names, commits, issues, pull requests, release notes, and publishable logs. The AI assistant communicates with the user in Turkish unless another language is requested. Third-party vendored code and immutable historical records are not rewritten only for translation.
+All first-party repository content must be written in clear, concise, professional English: source code, identifiers, comments, documentation, configuration descriptions, branch names, commits, issues, pull requests, release notes, and publishable logs. User communication defaults to English, suggests the detected system language, and follows the user's selected language. Third-party vendored code and immutable historical records are not rewritten only for translation.
 
 ## Selective skill architecture
 

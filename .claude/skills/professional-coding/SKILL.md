@@ -40,8 +40,8 @@ Local, reversible implementation work is allowed when it is within the user's re
 
 - Write all source code, identifiers, comments, commit messages, branch names, issue and pull-request content, documentation, configuration descriptions, logs intended for publication, and repository metadata in English.
 - Use clear, explanatory, concise English with professional courtesy. Prefer plain language over unnecessary jargon.
-- Communicate with the user in Turkish unless the user explicitly requests another language.
-- Keep machine-facing output in its required syntax, but explain it to the user in Turkish.
+- Use the project-selected user communication language. Default to English, suggest the detected system language at project start, and ask the user to choose when no preference is recorded.
+- Keep machine-facing output in its required syntax, but explain it in the selected user communication language.
 - Translate or replace newly encountered non-English repository text when it is within the task scope. Do not rewrite historical records or third-party vendored content solely for language consistency.
 
 ## Environment Bootstrap

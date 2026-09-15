@@ -5,7 +5,7 @@ description: Prepare or resume a local-first software project by locating its wo
 
 # Project Bootstrap
 
-Perform read-only discovery first. Communicate with the user in Turkish unless another language is requested. Write every repository artifact in clear professional English.
+Perform read-only discovery first. Communicate with the user in the project-selected language, defaulting to English and suggesting the system language when no choice is recorded. Write every repository artifact in clear professional English.
 
 Use the detailed workflows in the `professional-coding` package when available:
 
