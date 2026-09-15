@@ -88,14 +88,16 @@ The following deterministic commands are available:
 
 ```bash
 scripts/doctor
+scripts/bootstrap plan
 scripts/build-adapters --check
+scripts/github-flow plan --issue 123 --kind feature
 scripts/security-audit --format json --root .
 scripts/preflight --scope branch
 scripts/validate-project-profile .coderskill/project.yml.example
 scripts/validate-lesson knowledge/lesson.example.yml
 ```
 
-The broader `bootstrap` and `github-flow` commands remain planned and are not available yet. The test suite can be run with:
+Mutation subcommands for `bootstrap` and `github-flow` remain intentionally unavailable until an explicit reviewed operation is authorized. The test suite can be run with:
 
 ```bash
 python3 -m unittest discover -s tests -v
