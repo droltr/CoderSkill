@@ -67,6 +67,12 @@ When the user says `execute order 66`, `projeye başla`, or clearly equivalent w
 
 Pause only for missing purpose or a decision that cannot be inferred safely, credentials, external authorization not already granted, physical hardware writes, sensitive security remediation, or destructive/irreversible actions. Routine checkpoints do not require confirmation.
 
+## GitHub Identity and Target Gate
+
+Before writing code, creating a branch, or mutating GitHub state, inspect the configured GitHub CLI session without printing tokens. Identify the authenticated account, the local `origin` owner/repository, and the user-declared target account/repository. Show these values in a concise confirmation summary and require the user to explicitly confirm the account and target. Never infer consent from an existing session.
+
+At every resume, before push or pull-request creation, re-check the active account and remote. If the account, token session, owner, repository, or remote URL changed, stop and inform the user. Do not push, create issues, or open pull requests until the new identity and target are explicitly confirmed. An ambiguous, unavailable, or mismatched identity is a hard stop; local read-only analysis may continue.
+
 ## Repository Development Decisions
 
 - Treat `main` as the reviewed and working production baseline.
