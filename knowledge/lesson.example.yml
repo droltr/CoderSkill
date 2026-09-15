@@ -1,0 +1,12 @@
+schema: 1
+id: LESSON-2026-0001
+title: Describe the reusable project lesson
+status: proposed
+source: user-rule
+scope: project
+observed_at: YYYY-MM-DD
+rule: State the durable rule in clear English.
+evidence: []
+privacy_reviewed: false
+reviewed_by: null
+expires_at: null

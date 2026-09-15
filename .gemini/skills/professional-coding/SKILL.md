@@ -9,6 +9,20 @@ Preserve the user's scope and existing work. Inspect repository-local instructio
 
 This framework repository may be public when the user explicitly chooses that visibility. New product repositories under `droltr` remain private by default unless a separate explicit decision changes that policy.
 
+## Execution Status Protocol
+
+Every user-facing progress update and final response must begin with exactly one status marker:
+
+- `[STATUS: IN_PROGRESS]` — work is actively continuing.
+- `[STATUS: WAITING_FOR_USER]` — progress requires a specific user answer, approval, credential flow, or decision; name exactly what is needed.
+- `[STATUS: BLOCKED]` — a verified external or technical blocker prevents meaningful progress; state the blocker and the safe alternatives already checked.
+- `[STATUS: COMPLETE]` — the requested scope is finished and validated.
+- `[STATUS: FAILED]` — an attempted action failed and cannot be safely completed in the current run; state the failure and recovery path.
+
+Use `IN_PROGRESS` before long-running tool calls and when work will continue after an update. Never imply completion while required work remains. Do not use `BLOCKED` for uncertainty, ordinary waiting, a failed optional check, or work that can continue safely. When the agent is waiting for an external process, use `IN_PROGRESS` and report what is being monitored; use `WAITING_FOR_USER` only when user input is required.
+
+For multi-phase work, include the current phase and next transition after the marker, for example: `[STATUS: IN_PROGRESS] Phase 2/4 — running security checks; next: review findings.` Keep machine-readable status files local and ignored unless the project explicitly requires a tracked execution record.
+
 Use this skill only for end-to-end implementation or when the request spans multiple development phases. For a narrow request, prefer one focused skill to minimize context use:
 
 - Use `project-bootstrap` for local project discovery, synchronization, requirements, and language selection.
@@ -17,6 +31,8 @@ Use this skill only for end-to-end implementation or when the request spans mult
 - Use `code-quality-review` for professional code quality, correctness, maintainability, and tests.
 
 Do not load unrelated focused skills. Combine skills only when the user's request explicitly spans their concerns or one review finds a blocker that cannot be assessed responsibly without the other specialty.
+
+When the user authorizes an in-scope implementation workflow, continue through the planned phases without asking for confirmation at routine checkpoints. Pause only for a material scope change, destructive or irreversible action, credential/authentication step, physical hardware write, security-sensitive external mutation, or a decision that cannot be inferred safely. Report the reason and the exact next input required.
 
 Local, reversible implementation work is allowed when it is within the user's request. Do not create or mutate remote repositories, issues, pull requests, comments, labels, releases, deployments, or other external state unless the user explicitly requests that action. Do not commit or push unless explicitly requested.
 
