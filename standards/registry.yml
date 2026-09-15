@@ -1,0 +1,43 @@
+schema: 1
+description: Versioned references used by CoderSkill security and supply-chain checks.
+entries:
+  - id: owasp-asvs
+    title: OWASP Application Security Verification Standard
+    version: 5.0.0
+    source: https://owasp.org/projects/asvs
+    machine_readable: https://github.com/OWASP/ASVS/tree/v5.0.0
+    license: CC-BY-SA-4.0
+    scope: web-application
+    checked_at: 2026-09-15
+  - id: nist-ssdf
+    title: NIST Secure Software Development Framework
+    version: SP-800-218-v1.1
+    source: https://csrc.nist.gov/pubs/sp/800/218/final
+    machine_readable: https://csrc.nist.gov/projects/ssdf
+    license: public-government-publication
+    scope: software-development
+    checked_at: 2026-09-15
+  - id: nist-scap
+    title: NIST Security Content Automation Protocol
+    version: 1.4
+    source: https://csrc.nist.gov/Projects/security-content-automation-protocol/scap-releases/scap-1-4
+    machine_readable: https://csrc.nist.gov/Projects/security-content-automation-protocol/scap-releases/scap-1-4
+    license: public-government-publication
+    scope: security-automation
+    checked_at: 2026-09-15
+  - id: cvss
+    title: Common Vulnerability Scoring System
+    version: 4.0
+    source: https://www.first.org/cvss/
+    machine_readable: https://www.first.org/cvss/v4-0/
+    license: first-org-specification
+    scope: vulnerability-severity
+    checked_at: 2026-09-15
+  - id: cwe
+    title: Common Weakness Enumeration
+    version: current
+    source: https://cwe.mitre.org/
+    machine_readable: https://cwe.mitre.org/data/downloads.html
+    license: cwe-terms-of-use
+    scope: weakness-taxonomy
+    checked_at: 2026-09-15

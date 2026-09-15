@@ -9,6 +9,20 @@ Preserve the user's scope and existing work. Inspect repository-local instructio
 
 This framework repository may be public when the user explicitly chooses that visibility. New product repositories under `droltr` remain private by default unless a separate explicit decision changes that policy.
 
+## Execution Status Protocol
+
+Every user-facing progress update and final response must begin with exactly one status marker:
+
+- `[STATUS: IN_PROGRESS]` — work is actively continuing.
+- `[STATUS: WAITING_FOR_USER]` — progress requires a specific user answer, approval, credential flow, or decision; name exactly what is needed.
+- `[STATUS: BLOCKED]` — a verified external or technical blocker prevents meaningful progress; state the blocker and the safe alternatives already checked.
+- `[STATUS: COMPLETE]` — the requested scope is finished and validated.
+- `[STATUS: FAILED]` — an attempted action failed and cannot be safely completed in the current run; state the failure and recovery path.
+
+Use `IN_PROGRESS` before long-running tool calls and when work will continue after an update. Never imply completion while required work remains. Do not use `BLOCKED` for uncertainty, ordinary waiting, a failed optional check, or work that can continue safely. When the agent is waiting for an external process, use `IN_PROGRESS` and report what is being monitored; use `WAITING_FOR_USER` only when user input is required.
+
+For multi-phase work, include the current phase and next transition after the marker, for example: `[STATUS: IN_PROGRESS] Phase 2/4 — running security checks; next: review findings.` Keep machine-readable status files local and ignored unless the project explicitly requires a tracked execution record.
+
 Use this skill only for end-to-end implementation or when the request spans multiple development phases. For a narrow request, prefer one focused skill to minimize context use:
 
 - Use `project-bootstrap` for local project discovery, synchronization, requirements, and language selection.
