@@ -18,7 +18,7 @@ jobs:
       - name: Install validation dependency
         run: python -m pip install --disable-pip-version-check PyYAML
       - name: Validate shell scripts
-        run: bash -n scripts/*.sh scripts/validate-*
+        run: bash -n scripts/build-adapters scripts/doctor scripts/security-audit scripts/validate-*
       - name: Validate adapters
         run: scripts/build-adapters --check
       - name: Validate project profile and lesson examples
