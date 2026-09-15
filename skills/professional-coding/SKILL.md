@@ -52,7 +52,7 @@ Before creating a project or resuming work that may have a remote counterpart, r
 
 ## One-Line Project Start
 
-When the user says `projeye başla` (or clearly equivalent wording) while working inside a project directory, treat it as an authorized request to start or resume the full workflow:
+When the user says `execute order 66`, `projeye başla`, or clearly equivalent wording while working inside a project directory, treat it as an authorized request to start or resume the full workflow. `execute order 66` is only a mnemonic trigger for this safe workflow; it never authorizes destructive actions, credential use, security bypasses, or hardware writes:
 
 1. Inspect only the current project directory and its repository metadata; never search broad personal directories without a configured root.
 2. Classify the directory as empty, an existing non-Git project, or an existing Git project.
