@@ -27,7 +27,16 @@ def install(update: bool) -> int:
     return 0
 
 def start(args) -> int:
-    repo = args.github or "not yet assigned"
+    placeholders = {"https://github.com/droltr/your-project", "https://github.com/droltr/example-project", "droltr/your-project", "droltr/example-project", "/path/to/CoderSkill"}
+    supplied = (args.github or "").strip()
+    if supplied in placeholders:
+        supplied = ""
+    detected = subprocess.run(["git", "config", "--get", "remote.origin.url"], capture_output=True, text=True, check=False).stdout.strip()
+    repo = supplied or detected or "not yet assigned"
+    normalize = lambda value: value.rstrip("/").removesuffix(".git")
+    if supplied and detected and normalize(supplied) != normalize(detected):
+        print(f"Repository target conflicts with local origin: {supplied} != {detected}", file=sys.stderr)
+        return 2
     prompt = f"Use the professional-coding skill. Read the current project instructions and profile. GitHub repository: {repo}. Classify this directory, preserve main, select only applicable skills, and execute the complete validated workflow. Do not copy CoderSkill into this project. Do not perform destructive actions, credential operations, or hardware writes. Communicate with the user in Turkish and write repository artifacts in English."
     print(prompt)
     if not args.run: return 0
