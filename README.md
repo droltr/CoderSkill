@@ -46,6 +46,8 @@ The assistant uses a visible status marker at the start of every progress or fin
 
 `IN_PROGRESS` means work is continuing. `WAITING_FOR_USER` names the exact answer or approval required. `BLOCKED` is reserved for a verified blocker after safe alternatives were checked. `COMPLETE` is used only after the requested scope and validation are finished.
 
+For an authorized in-scope workflow, the assistant continues through routine implementation phases without pausing for unnecessary confirmation. It pauses only for material scope changes, destructive or irreversible actions, credentials, physical hardware writes, security-sensitive external mutations, or decisions that cannot be inferred safely.
+
 ## Usage
 
 The focused skills are designed to be invoked by name after they have been installed or linked into the active tool's documented skill directory. Use the smallest skill that matches the request:

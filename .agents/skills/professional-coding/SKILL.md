@@ -32,6 +32,8 @@ Use this skill only for end-to-end implementation or when the request spans mult
 
 Do not load unrelated focused skills. Combine skills only when the user's request explicitly spans their concerns or one review finds a blocker that cannot be assessed responsibly without the other specialty.
 
+When the user authorizes an in-scope implementation workflow, continue through the planned phases without asking for confirmation at routine checkpoints. Pause only for a material scope change, destructive or irreversible action, credential/authentication step, physical hardware write, security-sensitive external mutation, or a decision that cannot be inferred safely. Report the reason and the exact next input required.
+
 Local, reversible implementation work is allowed when it is within the user's request. Do not create or mutate remote repositories, issues, pull requests, comments, labels, releases, deployments, or other external state unless the user explicitly requests that action. Do not commit or push unless explicitly requested.
 
 ## Language and Communication

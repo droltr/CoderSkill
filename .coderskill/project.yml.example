@@ -1,0 +1,7 @@
+schema: 1
+project_id: example-project
+repository: droltr/example-project
+default_branch: main
+artifact_language: english
+user_communication_language: turkish
+active_profiles: []
