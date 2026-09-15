@@ -1,0 +1,5 @@
+#!/usr/bin/env sh
+set -eu
+if [ "${1:-}" != "plan" ]; then echo "Only read-only 'github-flow plan' is available; apply requires an explicit reviewed operation." >&2; exit 2; fi
+shift
+exec python3 "$(dirname "$0")/github_flow.py" "$@"
