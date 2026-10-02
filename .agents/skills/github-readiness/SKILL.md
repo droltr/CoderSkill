@@ -7,7 +7,7 @@ description: Perform a focused, read-only Git and GitHub readiness review coveri
 
 Default to read-only inspection. A request to check GitHub readiness does not authorize fetch, pull, commit, push, issue or pull-request creation, merge, repository creation, visibility changes, or settings changes. Ask for or rely on explicit authorization before each mutation outside the already requested scope.
 
-All repository metadata, branches, commits, issues, pull requests, templates, and published explanations must use clear professional English. Communicate with the user in the project-selected language; default to English and suggest the system language when no choice is recorded.
+All repository metadata, branches, commits, issues, pull requests, templates, and published explanations must use clear professional English. Communicate with the user in Turkish: questions, explanations, progress reports, and personal-knowledge (vault) notes are Turkish. Everything in the repository is English: source code, identifiers, project and repository names, descriptions, documentation, commits, branches, issues, and pull requests.
 
 ## Checks
 
@@ -19,7 +19,7 @@ Use the project profile to select only relevant GitHub capabilities. Actions and
 - Check topic-branch naming, issue association, focused commits, pull-request base, draft status where appropriate, and linear-history policy.
 - Check project purpose/problem/scope/platform documentation, English-only first-party content, license requirements, `.gitignore`, templates, CODEOWNERS, dependency update policy, branch protection expectations, least-privilege Actions, secret scanning, push protection, and private vulnerability reporting.
 - Inspect CI results and required checks when accessible. Do not equate absent or skipped CI with success.
-- Run or recommend secret/PII/stable-identifier preflight before publication, but route a full vulnerability review to `security-audit`.
+- Run the secret/PII/stable-identifier preflight before publication, and route a full vulnerability review to `security-audit`.
 
 ## Output
 
