@@ -44,7 +44,7 @@ Do not load unrelated focused skills. Combine focused skills only when the user'
 
 When the user authorizes an in-scope implementation workflow, continue through the planned phases without asking for confirmation at routine checkpoints. Pause only for a material scope change, destructive or irreversible action, credential/authentication step, physical hardware write, security-sensitive external mutation, or a decision that cannot be inferred safely. Report the reason and the exact next input required.
 
-Local, reversible implementation work is allowed when it is within the user's request. Do not create or mutate remote repositories, issues, pull requests, comments, labels, releases, deployments, or other external state unless the user explicitly requests that action. Do not commit or push unless explicitly requested.
+Local, reversible implementation work is allowed when it is within the user's request. For in-scope work, create the issue, commit on a topic branch, push the branch, and open the pull request yourself; do not wait for the merge. The user performs every merge: never merge a pull request or push to `main`, even after the user approves the merge. Changing repository settings, visibility, names, releases, or deleting remote branches or repositories requires an explicit user request for that action.
 
 ## Language and Communication
 
@@ -72,9 +72,9 @@ When the user says `execute order 66`, `projeye başla`, or clearly equivalent w
 5. Verify the local repository, remote identity, synchronization, required tools, and applicable privacy/security gates.
 6. Select the smallest set of focused skills from `active_profiles`; do not load unrelated skills.
 7. Record or update the English project purpose, scope, non-goals, platform, language decision, and risks.
-8. Create or reference a GitHub issue, use a short-lived topic branch, preserve the verified behavior of `main`, and implement the remaining in-scope work.
+8. Create the GitHub issue, create a short-lived topic branch, preserve the verified behavior of `main`, and implement the remaining in-scope work.
 9. Run applicable tests, preflight, security, quality, and publication checks; do not claim hardware verification from mocks.
-10. Prepare a focused commit and pull request with validation, safety impact, and rollback details. Do not merge unless required checks pass.
+10. Commit, push the topic branch, and open a focused pull request with validation, safety impact, and rollback details. Report the pull request and CI status; the user merges.
 
 Pause only for missing purpose or a decision that cannot be inferred safely, credentials, external authorization not already granted, physical hardware writes, sensitive security remediation, or destructive/irreversible actions. Routine checkpoints do not require confirmation.
 
@@ -96,7 +96,7 @@ At every resume, before push or pull-request creation, re-check the active accou
   - `docs/`
   - `test/`
   - `chore/`
-- Associate meaningful changes with a GitHub issue before implementation. If no issue exists, prepare the issue content and obtain authorization before creating it remotely.
+- Create a GitHub issue for each meaningful change before implementation and reference it from the commits and the pull request.
 - Submit changes to `main` through a pull request.
 - Use draft pull requests for incomplete or hardware-risking work.
 - Do not merge a pull request unless all required CI checks pass.
@@ -118,8 +118,8 @@ At every resume, before push or pull-request creation, re-check the active accou
 - Write project and repository names in English.
 - Version releases as `vT.B.A` (full release . beta . alpha), starting at `v0.0.0`, and tag them with `git tag vT.B.A`.
 - Select GitHub features by project type and fill them in: issue forms, labels, milestones for planned releases, and the pull-request template. Record the selection in the project documentation.
-- When a defect is detected, open or prepare an issue for it, label it by priority (`priority:high`, `priority:medium`, `priority:low`), work the queue in priority order, and close the issue through the fixing pull request.
-- Merge into `main` only after the user has tested or reviewed the branch and explicitly approved the merge. Passing CI is required but is not approval.
+- When a defect is detected in the project being worked on, create a GitHub issue for it labelled by priority (`priority:high`, `priority:medium`, `priority:low`), work the queue in priority order, and close it through the fixing pull request. Do not open issues in unrelated repositories.
+- The user tests or reviews the pull request and performs the merge into `main`. Passing CI is required but is not approval, and approval does not transfer the merge to the agent.
 - Finish one project before switching to another; when choosing between projects, start with the one that can be completed fastest.
 
 ## Private Repository and Dependency Provenance
