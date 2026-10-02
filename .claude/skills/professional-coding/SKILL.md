@@ -23,14 +23,24 @@ Use `IN_PROGRESS` before long-running tool calls and when work will continue aft
 
 For multi-phase work, include the current phase and next transition after the marker, for example: `[STATUS: IN_PROGRESS] Phase 2/4 — running security checks; next: review findings.` Keep machine-readable status files local and ignored unless the project explicitly requires a tracked execution record.
 
-Use this skill only for end-to-end implementation or when the request spans multiple development phases. For a narrow request, prefer one focused skill to minimize context use:
+## Mandatory Start Gate
+
+Load this skill before the first code, configuration, or repository change in any project, including small edits, helper scripts, and tooling inside a knowledge vault. Do not write or edit code until this gate is complete:
+
+1. Load `professional-coding` (this skill).
+2. Select and load the focused skills the task requires from the list below; load no unrelated skill.
+3. Identify the tools the task needs and verify they are installed before using them.
+4. Read repository-local instructions (`AGENTS.md`, `CLAUDE.md`, project profile) and apply them.
+5. State the selected skills and tools in the first progress update.
+
+For a narrow review request, load the matching focused skill in addition to this skill:
 
 - Use `project-bootstrap` for local project discovery, synchronization, requirements, and language selection.
 - Use `security-audit` for a security, privacy, secret, or vulnerability review.
 - Use `github-readiness` for Git/GitHub compatibility, governance, CI, and publication readiness.
 - Use `code-quality-review` for professional code quality, correctness, maintainability, and tests.
 
-Do not load unrelated focused skills. Combine skills only when the user's request explicitly spans their concerns or one review finds a blocker that cannot be assessed responsibly without the other specialty.
+Do not load unrelated focused skills. Combine focused skills only when the user's request explicitly spans their concerns or one review finds a blocker that cannot be assessed responsibly without the other specialty.
 
 When the user authorizes an in-scope implementation workflow, continue through the planned phases without asking for confirmation at routine checkpoints. Pause only for a material scope change, destructive or irreversible action, credential/authentication step, physical hardware write, security-sensitive external mutation, or a decision that cannot be inferred safely. Report the reason and the exact next input required.
 
@@ -39,9 +49,10 @@ Local, reversible implementation work is allowed when it is within the user's re
 ## Language and Communication
 
 - Write all source code, identifiers, comments, commit messages, branch names, issue and pull-request content, documentation, configuration descriptions, logs intended for publication, and repository metadata in English.
-- Use clear, explanatory, concise English with professional courtesy. Prefer plain language over unnecessary jargon.
-- Use the project-selected user communication language. Default to English, suggest the detected system language at project start, and ask the user to choose when no preference is recorded.
-- Keep machine-facing output in its required syntax, but explain it in the selected user communication language.
+- Use clear, explanatory, concise English with professional courtesy. Use plain language instead of unnecessary jargon.
+- Communicate with the user in Turkish: questions, explanations, progress reports, and personal-knowledge (vault) notes are Turkish. Everything in the repository is English: source code, identifiers, project and repository names, descriptions, documentation, commits, branches, issues, and pull requests.
+- Keep machine-facing output in its required syntax, and explain it to the user in Turkish.
+- Treat every user request as an instruction to execute, regardless of polite phrasing (for example "yapar mısın", "yapalım"). Politeness is not optional wording; pause only for the reasons listed in this skill.
 - Translate or replace newly encountered non-English repository text when it is within the task scope. Do not rewrite historical records or third-party vendored content solely for language consistency.
 
 ## Environment Bootstrap
@@ -52,7 +63,7 @@ Before creating a project or resuming work that may have a remote counterpart, r
 
 ## One-Line Project Start
 
-When the user says `execute order 66` while working inside a project directory, treat it as an authorized request to start or resume the full workflow. The phrase is only a mnemonic trigger for this safe workflow; it never authorizes destructive actions, credential use, security bypasses, or hardware writes:
+When the user says `execute order 66`, `projeye başla`, or clearly equivalent wording while working inside a project directory, treat it as an authorized request to start or resume the full workflow. `execute order 66` is only a mnemonic trigger for this safe workflow; it never authorizes destructive actions, credential use, security bypasses, or hardware writes:
 
 1. Inspect only the current project directory and its repository metadata; never search broad personal directories without a configured root.
 2. Classify the directory as empty, an existing non-Git project, or an existing Git project.
@@ -92,8 +103,7 @@ At every resume, before push or pull-request creation, re-check the active accou
 - Keep pull requests focused on a single concern.
 - Include validation results, hardware impact, safety precautions, and rollback instructions in pull requests.
 - Resolve all review conversations before merging.
-- Prefer squash merge for iterative branches.
-- Preserve individual commits when each commit has independent historical value.
+- Use squash merge for iterative branches; preserve individual commits only when each commit has independent historical value.
 - Delete short-lived branches after they are merged, subject to authorization for remote deletion.
 - Keep `main` protected against direct pushes, force-pushes, and deletion.
 - Require the pull-request branch to be up to date with `main`.
@@ -101,6 +111,16 @@ At every resume, before push or pull-request creation, re-check the active accou
 - Do not rewrite published history unless removing sensitive information or responding to an equivalent security incident.
 - When history rewriting is necessary, preserve commit topology, messages, and unrelated content.
 - Use `--force-with-lease` instead of unrestricted force-push when replacing rewritten history.
+
+## GitHub Compatibility
+
+- Name the local project folder exactly after its GitHub repository (`droltr/<repository>`, case-sensitive). For a project without a repository, use a GitHub-compatible folder name: English words, ASCII letters, digits, `-`, `_`, and `.` only; no spaces.
+- Write project and repository names in English.
+- Version releases as `vT.B.A` (full release . beta . alpha), starting at `v0.0.0`, and tag them with `git tag vT.B.A`.
+- Select GitHub features by project type and fill them in: issue forms, labels, milestones for planned releases, and the pull-request template. Record the selection in the project documentation.
+- When a defect is detected, open or prepare an issue for it, label it by priority (`priority:high`, `priority:medium`, `priority:low`), work the queue in priority order, and close the issue through the fixing pull request.
+- Merge into `main` only after the user has tested or reviewed the branch and explicitly approved the merge. Passing CI is required but is not approval.
+- Finish one project before switching to another; when choosing between projects, start with the one that can be completed fastest.
 
 ## Private Repository and Dependency Provenance
 
@@ -117,7 +137,7 @@ At every resume, before push or pull-request creation, re-check the active accou
 - Perform local modifications on `vendor/<dependency>-patches` or an equivalent short-lived topic branch, never on the archival mirror branch.
 - Update vendored dependencies through a dedicated issue and pull request. Show the old and new immutable revisions, upstream diff summary, license/security impact, local patch status, validation, and rollback revision.
 - Do not automatically sync, publish, merge, or delete mirrors or vendor branches. These are remote mutations and require explicit authorization.
-- Prefer a pinned Git submodule instead of a subtree only when the repository's local profile explicitly requires independently versioned checkout behavior. Do not mix subtree and submodule management for the same dependency.
+- Use a pinned Git submodule instead of a subtree only when the repository's local profile explicitly requires independently versioned checkout behavior. Do not mix subtree and submodule management for the same dependency.
 
 The term “dependency branch” does not mean placing unrelated files directly on `main` or switching the application build to that branch. It is a provenance branch; the reviewed subtree snapshot is what the project consumes.
 
@@ -221,7 +241,7 @@ git diff --check
 - Keep dependency update pull requests separate and review them before merging.
 - Do not automatically merge dependency updates solely because CI passes.
 
-Governance settings are recommendations until their current state is verified. Changing repository settings is an external mutation and requires explicit user authorization.
+Treat governance settings as unverified until their current state is checked. Changing repository settings is an external mutation and requires explicit user authorization.
 
 ## Current Project Tracking
 
