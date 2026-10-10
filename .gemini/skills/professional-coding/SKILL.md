@@ -28,10 +28,11 @@ For multi-phase work, include the current phase and next transition after the ma
 Load this skill before the first code, configuration, or repository change in any project, including small edits, helper scripts, and tooling inside a knowledge vault. Do not write or edit code until this gate is complete:
 
 1. Load `professional-coding` (this skill).
-2. Select and load the focused skills the task requires from the list below; load no unrelated skill.
-3. Identify the tools the task needs and verify they are installed before using them.
-4. Read repository-local instructions (`AGENTS.md`, `CLAUDE.md`, project profile) and apply them.
-5. State the selected skills and tools in the first progress update.
+2. Load `verified-agent-rules` for every coding, research, hardware, or system-change task.
+3. Select and load any additional focused skills the task requires from the list below; load no unrelated skill.
+4. Identify the tools the task needs and verify they are installed before using them.
+5. Read repository-local instructions (`AGENTS.md`, `CLAUDE.md`, project profile) and apply them.
+6. State the selected skills and tools in the first progress update.
 
 For a narrow review request, load the matching focused skill in addition to this skill:
 

@@ -105,6 +105,7 @@ For an empty directory, enter it and run the same command. The agent first learn
 The focused skills are designed to be invoked by name after they have been installed or linked into the active tool's documented skill directory. Use the smallest skill that matches the request:
 
 ```text
+Evidence-first rules:        verified-agent-rules
 Security and privacy:       security-audit
 GitHub compatibility:       github-readiness
 Code quality:               code-quality-review
@@ -115,6 +116,9 @@ End-to-end implementation:  professional-coding
 Example requests:
 
 ```text
+Use verified-agent-rules for this hardware-facing change. Verify the exact device, sources,
+versions, write path, readback, rollback, and runtime result. Do not make assumptions.
+
 Use security-audit to inspect this repository for secrets, personal-data leaks, and exploitable vulnerabilities. Do not modify files.
 
 Use github-readiness to check whether this repository is ready for a droltr GitHub pull request. Do not push or change remote settings.
