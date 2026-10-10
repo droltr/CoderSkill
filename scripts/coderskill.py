@@ -6,25 +6,90 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 
-def install(update: bool) -> int:
-    home = Path.home(); targets = {"codex": home / ".codex/skills", "claude": home / ".claude/skills", "gemini": home / ".gemini/skills"}
-    for tool, target in targets.items():
-        target.mkdir(parents=True, exist_ok=True)
-        source = ROOT / (".agents" if tool == "codex" else f".{tool}") / "skills"
-        for skill in source.iterdir():
-            destination = target / skill.name
-            if destination.exists() and not update:
-                print(f"preserved existing {tool}/{skill.name}; use --update to replace")
+RECEIPT = ".coderskill-installed.json"
+AGENT_SOURCES = {"claude": ".claude", "codex": ".agents", "gemini": ".gemini"}
+# Codex reads user skills from ~/.codex/skills and ~/.agents/skills (openai/codex, codex-rs/ext/skills/src/host_roots.rs).
+AGENT_TARGETS = {"claude": ".claude/skills", "codex": ".codex/skills", "gemini": ".gemini/skills"}
+
+
+def tree_digest(path: Path) -> str:
+    import hashlib
+    digest = hashlib.sha256()
+    for item in sorted(path.rglob("*")):
+        if item.is_file():
+            digest.update(item.relative_to(path).as_posix().encode() + b"\0" + item.read_bytes() + b"\0")
+    return digest.hexdigest()
+
+
+def read_receipt(target: Path) -> dict:
+    import json
+    try:
+        return json.loads((target / RECEIPT).read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
+
+def install_agent(agent: str, home: Path, update: bool, force: bool) -> int:
+    import json, time
+    source = ROOT / AGENT_SOURCES[agent] / "skills"
+    target = home / AGENT_TARGETS[agent]
+    target.mkdir(parents=True, exist_ok=True)
+    receipt = read_receipt(target)
+    status = 0
+    for skill in sorted(p for p in source.iterdir() if p.is_dir()):
+        destination = target / skill.name
+        new_digest = tree_digest(skill)
+        if destination.exists():
+            if not update:
+                print(f"preserved existing {agent}/{skill.name}; use --update to replace")
                 continue
-            if destination.exists(): shutil.rmtree(destination)
-            shutil.copytree(skill, destination)
-            print(f"installed {tool}/{skill.name}")
+            current = tree_digest(destination)
+            if current == new_digest:
+                receipt[skill.name] = new_digest
+                print(f"up to date {agent}/{skill.name}")
+                continue
+            if receipt.get(skill.name) != current:
+                if not force:
+                    print(f"stopped {agent}/{skill.name}: it was changed after installation (or not installed by CoderSkill); "
+                          "rerun with --update --force to back it up and replace it", file=sys.stderr)
+                    status = 3
+                    continue
+                backup = destination.with_name(f"{skill.name}.backup-{time.strftime('%Y%m%d-%H%M%S')}")
+                destination.rename(backup)
+                print(f"backed up {agent}/{skill.name} to {backup.name}")
+            else:
+                shutil.rmtree(destination)
+        shutil.copytree(skill, destination)
+        receipt[skill.name] = new_digest
+        print(f"installed {agent}/{skill.name}")
+    (target / RECEIPT).write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return status
+
+
+def install(update: bool, agents: list[str] | None = None, force: bool = False) -> int:
+    home = Path.home()
+    if not (ROOT / "skills").is_dir():
+        print("install must run from a CoderSkill clone (scripts/coderskill install)", file=sys.stderr)
+        return 2
+    selected = agents or [name for name in AGENT_TARGETS if shutil.which(name)]
+    if not selected:
+        print("No supported AI CLI found; choose with --agents claude,codex,gemini", file=sys.stderr)
+        return 2
+    status = 0
+    for agent in selected:
+        status = install_agent(agent, home, update, force) or status
+    # Run the command from a copy so that switching branches in this checkout cannot break it.
+    share = home / ".local/share/coderskill"
+    if (share / "scripts").exists():
+        shutil.rmtree(share / "scripts")
+    shutil.copytree(ROOT / "scripts", share / "scripts", ignore=shutil.ignore_patterns("__pycache__"))
     bindir = home / ".local/bin"; bindir.mkdir(parents=True, exist_ok=True)
     link = bindir / "coderskill"
     if link.exists() or link.is_symlink(): link.unlink()
-    link.symlink_to(Path(__file__).resolve())
+    link.symlink_to(share / "scripts" / "coderskill.py")
     print(f"installed command at {link}")
-    return 0
+    return status
+
 
 def start(args) -> int:
     placeholders = {"https://github.com/droltr/your-project", "https://github.com/droltr/example-project", "droltr/your-project", "droltr/example-project", "/path/to/CoderSkill"}
@@ -60,10 +125,14 @@ def start(args) -> int:
 
 def main():
     parser = argparse.ArgumentParser(prog="coderskill"); sub = parser.add_subparsers(dest="command", required=True)
-    i = sub.add_parser("install"); i.add_argument("--update", action="store_true")
+    i = sub.add_parser("install"); i.add_argument("--update", action="store_true"); i.add_argument("--force", action="store_true", help="back up and replace skills changed after installation"); i.add_argument("--agents", help="comma-separated: claude,codex,gemini (default: installed CLIs)")
     s = sub.add_parser("start"); s.add_argument("phrase", nargs="+"); s.add_argument("--github"); s.add_argument("--agent", choices=("codex", "claude", "gemini")); s.add_argument("--run", action="store_true"); s.add_argument("--confirm-account", action="store_true")
     args = parser.parse_args()
-    if args.command == "install": return install(args.update)
+    if args.command == "install":
+        agents = [a.strip() for a in args.agents.split(",")] if args.agents else None
+        unknown = [a for a in agents or [] if a not in AGENT_TARGETS]
+        if unknown: print(f"unknown agent(s): {', '.join(unknown)}", file=sys.stderr); return 2
+        return install(args.update, agents, args.force)
     phrase = " ".join(args.phrase).lower()
     if phrase not in ("execute order 66", "projeye başla", "projeye basla"): print("Use: coderskill start execute order 66 (or: projeye başla)", file=sys.stderr); return 2
     return start(args)

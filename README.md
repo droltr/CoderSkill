@@ -57,8 +57,12 @@ Clone CoderSkill once outside product repositories and install its adapters for 
 ```bash
 git clone https://github.com/droltr/CoderSkill.git
 cd CoderSkill
-scripts/coderskill install
+scripts/coderskill install                      # installed AI CLIs only; --agents claude,codex,gemini to choose
+scripts/coderskill install --update             # replaces unchanged copies, stops on local changes
+scripts/coderskill install --update --force     # backs up locally changed skills, then replaces them
 ```
+
+The installer records what it installed in `.coderskill-installed.json` next to the skills, so an update never silently overwrites a skill you edited. The `coderskill` command runs from a copy under `~/.local/share/coderskill`, so switching branches in this clone does not change it.
 
 The installer writes only to the user skill directories and user command directory. It does not copy CoderSkill into a target project and does not overwrite existing skills unless `--update` is supplied:
 
