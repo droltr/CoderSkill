@@ -21,6 +21,10 @@ until it can be checked safely or the user explicitly accepts a documented uncer
 - If a test was not run or a source was not checked, state that explicitly.
 - Recheck conclusions after an implementation, configuration, version, hardware, or environment
   change that could affect them.
+- Do not believe your own proposed solution. A desired outcome is not evidence; name the exact
+  observation that would prove it and confirm that it was observed.
+- When a finding is disproved, retract it at once in every place that repeats it: code comments,
+  reports, plans, memory, and user-facing summaries.
 
 ## Research and sources
 
@@ -39,6 +43,10 @@ until it can be checked safely or the user explicitly accepts a documented uncer
 
 ## Coding and repository changes
 
+- Keep experimental work, unverified UI, configuration editors, and generated files separate from
+  stable runtime code and on their declared branch. A stable commit excludes them.
+- Do not commit generated binaries, credentials, tokens, serial numbers, unredacted logs, or
+  machine-specific identifiers. Inspect the staged diff before every commit.
 - Determine the repository language, toolchain, dependencies, build, test, formatting,
   packaging, deployment, and contribution rules before editing.
 - Inspect callers, consumers, generated files, installed copies, and compatibility contracts
@@ -51,6 +59,20 @@ until it can be checked safely or the user explicitly accepts a documented uncer
   reason.
 - Verify the artifact users actually run, including installation paths, permissions, service
   units, packaged resources, cached UI assets, and versioned binaries.
+
+## Tools, probes, and proof levels
+
+- Learn what each tool actually does in this environment before interpreting its output: driver
+  path, transaction type, defaults, units, error semantics, and negative behavior.
+- Run a negative control before accepting a positive result. If the control also reports success,
+  the method is invalid and every result from it is void.
+- Treat all-zero, all-0xFF, unchanged, constant, generic, cached, or stale output as a red flag
+  that needs another control, never as confirmation.
+- A tool's exit code 0, ACK, or "OK" proves only that the call returned.
+- Do not silently install, switch, or substitute tools or methods. State the reason and obtain
+  authorization first.
+- Keep proof levels separate: source inspection, compilation, dry run, mock test, read-only
+  probe, physical write, readback, and human observation each prove a different claim.
 
 ## Hardware and low-level resources
 
@@ -93,3 +115,9 @@ until it can be checked safely or the user explicitly accepts a documented uncer
 - Before a high-impact action, identify the action, expected observable result, rollback, and
   stopping condition. Stop when the observation contradicts the expectation or required evidence
   is unavailable.
+
+## Failure-prevention checklist
+
+Apply [references/failure-prevention-checklist.md](references/failure-prevention-checklist.md)
+as a mandatory self-check before claiming a result, changing a repository, touching hardware,
+changing a service, or recording a conclusion.

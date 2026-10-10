@@ -34,6 +34,10 @@ Load this skill before the first code, configuration, or repository change in an
 5. Read repository-local instructions (`AGENTS.md`, `CLAUDE.md`, project profile) and apply them.
 6. State the selected skills and tools in the first progress update.
 
+## Work Order and Records
+
+Follow the mandatory work order in [references/work-records.md](references/work-records.md): research, plan, implement, verify that it works, test, record, pull request. Record every user request in `docs/REQUESTS.md` with its status and how it was met, research in `docs/research/`, decisions in `docs/decisions/`, and a cleaned session record in the git-ignored `.agent-sessions/records/`. The CoderSkill hooks in `hooks/` load these rules at session start and log requests automatically; they do not replace the records.
+
 For a narrow review request, load the matching focused skill in addition to this skill:
 
 - Use `project-bootstrap` for local project discovery, synchronization, requirements, and language selection.
@@ -257,4 +261,4 @@ Verify the repository owner/name and the referenced issue and pull-request state
 
 ## Completion Report
 
-Report changed files, validation commands and outcomes, skipped checks with reasons, security/privacy findings, hardware verification status, and remaining risks. Include remote issue, pull-request, or commit links only when they were actually verified. Do not claim success for checks that were not run.
+Update the work records first (see [references/work-records.md](references/work-records.md)). Report changed files, validation commands and outcomes, skipped checks with reasons, security/privacy findings, hardware verification status, and remaining risks. Include remote issue, pull-request, or commit links only when they were actually verified. Do not claim success for checks that were not run.
