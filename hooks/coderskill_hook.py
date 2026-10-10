@@ -4,7 +4,7 @@
 Usage: coderskill_hook.py <event> [--agent claude|codex|gemini]
 
 Events and the hook they serve:
-  session-start   SessionStart     inject the CoderSkill rules and open requests
+  session-start   SessionStart     inject the CoderSkill rules, sync state, open requests
   subagent-start  SubagentStart    inject the CoderSkill rules into a subagent
   prompt          UserPromptSubmit log the request locally; reinforce "stop"
   pre-tool        PreToolUse       deny merges/pushes to main, staged secrets, bad file names;
@@ -36,6 +36,10 @@ from pathlib import Path
 HOOK_DIR = Path(__file__).resolve().parent
 CONTEXT_FILE = HOOK_DIR / "session-context.md"
 LOCAL_DIR = ".agent-sessions"
+PRIVATE_DIR = ".private"
+# Request logs, newest layout first; docs/REQUESTS.md is the older tracked layout.
+REQUEST_FILES = (f"{PRIVATE_DIR}/requests.md", "docs/REQUESTS.md")
+MAX_LISTED_FILES = 20
 OPEN_MARKERS = ("🔄", "⏳", "❓")
 MAX_OPEN_REQUESTS = 10
 
@@ -121,15 +125,61 @@ def pre_tool_output(decision: str, reason: str) -> dict:
     }
 
 
-def open_requests(root: Path) -> list[str]:
-    path = root / "docs" / "REQUESTS.md"
-    if not path.is_file():
-        return []
+def request_file(root: Path) -> Path | None:
+    for relative in REQUEST_FILES:
+        if (root / relative).is_file():
+            return root / relative
+    return None
+
+
+def open_requests(path: Path) -> list[str]:
     rows = []
     for line in path.read_text(encoding="utf-8", errors="replace").splitlines():
         if line.startswith("| ") and any(marker in line for marker in OPEN_MARKERS):
             rows.append(line.strip())
     return rows
+
+
+def git_out(root: Path, *args: str) -> str:
+    try:
+        result = subprocess.run(
+            ["git", "-C", str(root), *args], capture_output=True, text=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.SubprocessError):
+        return ""
+    return result.stdout.strip() if result.returncode == 0 else ""
+
+
+def sync_report(root: Path) -> list[str]:
+    """Describe how the local repository differs from its remote, as of the last fetch."""
+    lines = []
+    changed = [l for l in git_out(root, "status", "--porcelain").splitlines() if l]
+    if changed:
+        lines.append(f"- {len(changed)} uncommitted change(s).")
+    refs = git_out(root, "for-each-ref", "--format=%(refname:short)|%(upstream:short)|%(upstream:track)", "refs/heads")
+    no_upstream, ahead = [], []
+    for ref in refs.splitlines():
+        name, upstream, track = (ref.split("|") + ["", ""])[:3]
+        if not upstream:
+            no_upstream.append(name)
+        elif "gone" in track:
+            lines.append(f"- {name}: upstream {upstream} is gone (merged or deleted on the remote).")
+        else:
+            if "ahead" in track:
+                ahead.append(name)
+            if "behind" in track:
+                lines.append(f"- {name}: {track.strip('[]')} compared with {upstream}.")
+    if ahead:
+        lines.append(f"- Unpushed commits on: {', '.join(ahead)}.")
+    if no_upstream:
+        lines.append(f"- Branches without a remote copy: {', '.join(no_upstream)}.")
+    if not git_out(root, "remote"):
+        lines.append("- No remote configured; GitHub does not track this project yet.")
+    fetch_head = root / ".git" / "FETCH_HEAD"
+    if lines and fetch_head.is_file():
+        age_hours = (time.time() - fetch_head.stat().st_mtime) / 3600
+        lines.append(f"- Based on the last fetch, {age_hours:.0f} hour(s) ago; run `git fetch` for current data.")
+    return lines
 
 
 # ---------------------------------------------------------------- session start
@@ -142,12 +192,21 @@ def session_start(data: dict, subagent: bool = False) -> dict:
         notes = [f"\nProject root: {root.name}"]
         if (root / ".coderskill" / "project.yml").is_file():
             notes.append("Project profile: .coderskill/project.yml (read it).")
-        rows = open_requests(root)
+        sync = sync_report(root)
+        if sync:
+            notes.append("Local and GitHub state:")
+            notes.extend(sync)
+        requests = request_file(root)
+        rows = open_requests(requests) if requests else []
         if rows:
-            notes.append(f"Open requests in docs/REQUESTS.md ({len(rows)}):")
+            notes.append(f"Open requests in {requests.relative_to(root)} ({len(rows)}):")
             notes.extend(rows[:MAX_OPEN_REQUESTS])
             if len(rows) > MAX_OPEN_REQUESTS:
                 notes.append(f"... and {len(rows) - MAX_OPEN_REQUESTS} more.")
+        research = sorted((root / PRIVATE_DIR / "research").glob("*.md"))
+        if research:
+            notes.append(f"Research notes in {PRIVATE_DIR}/research/ (read before researching again):")
+            notes.extend(f"- {path.name}" for path in research[-MAX_LISTED_FILES:])
         text += "\n".join(notes) + "\n"
     return context_output("SubagentStart" if subagent else "SessionStart", text)
 
@@ -354,8 +413,8 @@ def stop(data: dict) -> dict | None:
     if root and records_missing(root, data.get("session_id")):
         return {
             "systemMessage": (
-                "CoderSkill: files changed in this session but docs/REQUESTS.md and "
-                f"{LOCAL_DIR}/records/ were not updated."
+                "CoderSkill: files changed in this session but neither the request log "
+                f"({PRIVATE_DIR}/requests.md) nor a session record ({PRIVATE_DIR}/sessions/) was updated."
             )
         }
     return None
@@ -387,7 +446,7 @@ def records_missing(root: Path, session_id: str | None) -> bool:
     changed = [line[3:] for line in status.splitlines() if line[3:] and not line[3:].startswith(LOCAL_DIR)]
     if not changed:
         return False
-    records = [root / "docs" / "REQUESTS.md", *(root / LOCAL_DIR / "records").glob("*.md")]
+    records = [*(root / r for r in REQUEST_FILES), *(root / PRIVATE_DIR / "sessions").glob("*.md")]
     return not any(p.is_file() and p.stat().st_mtime >= started for p in records)
 
 

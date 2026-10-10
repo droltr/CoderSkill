@@ -72,17 +72,18 @@ subagent and enforces the mandatory rules. It uses only the Python standard libr
 
 | Hook | Effect |
 |---|---|
-| `SessionStart`, `SubagentStart` | Inject `hooks/session-context.md` and the open rows of `docs/REQUESTS.md` |
+| `SessionStart`, `SubagentStart` | Inject `hooks/session-context.md`, the local and GitHub sync state, open requests, and research notes from `.private/` |
 | `UserPromptSubmit` | Log each request to `.agent-sessions/requests.jsonl`; reinforce "stop" |
 | `PreToolUse` (Claude Code) | Deny PR merges, pushes to `main`, staged secrets, and non-GitHub-compatible new names; ask before hardware writes |
 | `Stop` | Block once on unlabelled hedging; remind when records were not updated |
+| Git `pre-commit` (global) | Reject `.private/`, `.agent-sessions/`, local note files, and secrets in any commit; then run the repository's own hook |
 | `SessionEnd` | Copy the transcript to `.agent-sessions/transcripts/` |
 
-`.agent-sessions/` is git-ignored by its own `.gitignore`. Install for the agents you use:
+`.private/` (requests, research, plans, session records) and `.agent-sessions/` (prompt log, transcripts) stay local and are never pushed. Install for the agents you use; the hook files are copied to `~/.config/coderskill/` so they do not depend on the branch checked out here:
 
 ```bash
-scripts/install-hooks claude codex --dry-run   # show the result
-scripts/install-hooks claude codex             # write it, with backups
+scripts/install-hooks claude codex git --dry-run   # show the result
+scripts/install-hooks claude codex git             # write it, with backups
 ```
 
 Claude Code reads `~/.claude/settings.json`, Codex `~/.codex/hooks.json`, and Gemini CLI

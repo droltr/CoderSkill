@@ -36,7 +36,7 @@ Load this skill before the first code, configuration, or repository change in an
 
 ## Work Order and Records
 
-Follow the mandatory work order in [references/work-records.md](references/work-records.md): research, plan, implement, verify that it works, test, record, pull request. Record every user request in `docs/REQUESTS.md` with its status and how it was met, research in `docs/research/`, decisions in `docs/decisions/`, and a cleaned session record in the git-ignored `.agent-sessions/records/`. The CoderSkill hooks in `hooks/` load these rules at session start and log requests automatically; they do not replace the records.
+Follow the mandatory work order in [references/work-records.md](references/work-records.md): research, plan, implement, verify that it works, test, record, pull request. Create the GitHub repository when the project starts; GitHub holds the public code, issues, pull requests, and documentation. Keep requests (with status and how each was met), research, plans, decisions, and session records in the local `.private/` folder, which is never pushed. Public issues, pull requests, and commits must not contain private details. The CoderSkill hooks in `hooks/` load these rules at session start and log requests automatically; they do not replace the records.
 
 For a narrow review request, load the matching focused skill in addition to this skill:
 

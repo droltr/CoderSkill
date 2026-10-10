@@ -1,4 +1,5 @@
 import json
+import os
 import subprocess
 import tempfile
 import unittest
@@ -6,6 +7,10 @@ from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
 HOOK = ROOT / "hooks" / "coderskill_hook.py"
+_ISOLATION = tempfile.TemporaryDirectory()
+# Keep the user's global git configuration and hooks out of the tests.
+os.environ.update({"HOME": _ISOLATION.name, "XDG_CONFIG_HOME": f"{_ISOLATION.name}/.config", "GIT_CONFIG_NOSYSTEM": "1"})
+os.environ.pop("GIT_CONFIG_GLOBAL", None)
 
 
 def run_hook(event, data, agent="claude"):
@@ -17,8 +22,8 @@ def run_hook(event, data, agent="claude"):
     return json.loads(result.stdout) if result.stdout.strip() else None
 
 
-def git(cwd, *args):
-    subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, check=True)
+def git(cwd, *args, check=True):
+    return subprocess.run(["git", "-C", str(cwd), *args], capture_output=True, text=True, check=check)
 
 
 class RepoTestCase(unittest.TestCase):
@@ -50,6 +55,31 @@ class SessionStartTests(RepoTestCase):
         self.assertIn("professional-coding", context)
         self.assertIn("Open thing", context)
         self.assertNotIn("Done thing", context)
+
+    def test_private_requests_research_and_sync_state(self):
+        private = self.repo / ".private"
+        (private / "research").mkdir(parents=True)
+        (private / "requests.md").write_text("| 3 | Private open item | 🔄 | — |\n")
+        (private / "research" / "2026-10-10-topic.md").write_text("x")
+        context = run_hook("session-start", {"cwd": str(self.repo)})["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Private open item", context)
+        self.assertIn(".private/requests.md", context)
+        self.assertIn("2026-10-10-topic.md", context)
+        self.assertIn("No remote configured", context)
+
+    def test_unpushed_commits_are_reported(self):
+        remote = Path(self.tmp.name) / "remote.git"
+        git(self.tmp.name, "init", "-q", "--bare", str(remote))
+        git(self.repo, "remote", "add", "origin", str(remote))
+        git(self.repo, "push", "-q", "-u", "origin", "main")
+        context = run_hook("session-start", {"cwd": str(self.repo)})["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("Local and GitHub state", context)  # negative control: in sync
+        (self.repo / "README.md").write_text("changed\n")
+        git(self.repo, "commit", "-q", "-am", "local only")
+        git(self.repo, "switch", "-q", "-c", "feat/local")
+        context = run_hook("session-start", {"cwd": str(self.repo)})["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Unpushed commits on: main", context)
+        self.assertIn("Branches without a remote copy: feat/local", context)
 
     def test_outside_repository_has_rules_only(self):
         output = run_hook("session-start", {"cwd": self.tmp.name})
@@ -188,10 +218,10 @@ class StopTests(RepoTestCase):
         run_hook("prompt", {"cwd": str(self.repo), "session_id": "s", "prompt": "change it"})
         (self.repo / "README.md").write_text("changed\n")
         output = self.stop("Done (source: tests).")
-        self.assertIn("REQUESTS.md", output["systemMessage"])
-        docs = self.repo / "docs"
-        docs.mkdir()
-        (docs / "REQUESTS.md").write_text("| 1 | change it | ✅ | README.md |\n")
+        self.assertIn("requests.md", output["systemMessage"])
+        private = self.repo / ".private"
+        private.mkdir()
+        (private / "requests.md").write_text("| 1 | change it | ✅ | README.md |\n")
         self.assertIsNone(self.stop("Done (source: tests)."))
 
 
@@ -226,10 +256,88 @@ class InstallerTests(unittest.TestCase):
             self.assertTrue(backups)
             self.assertNotIn("coderskill_hook", min(backups, key=lambda p: p.stat().st_mtime_ns).read_text())
 
+    def test_installed_command_runs_from_copy_and_fails_safe(self):
+        with tempfile.TemporaryDirectory() as home:
+            env = {"HOME": home, "XDG_CONFIG_HOME": f"{home}/.config", "PATH": "/usr/bin:/bin"}
+            subprocess.run([str(ROOT / "scripts" / "install-hooks"), "claude"], env=env, check=True, capture_output=True)
+            settings = json.loads((Path(home) / ".claude" / "settings.json").read_text())
+            command = settings["hooks"]["SessionStart"][0]["hooks"][0]["command"]
+            self.assertNotIn(str(ROOT), command)
+            result = subprocess.run(["sh", "-c", command], input=json.dumps({"cwd": home}), env=env, capture_output=True, text=True)
+            self.assertIn("CoderSkill rules", result.stdout)
+            # Without the installed script the hook must exit 0, never 2 (which blocks tools).
+            (Path(home) / ".config" / "coderskill" / "hooks" / "coderskill_hook.py").unlink()
+            pre_tool = settings["hooks"]["PreToolUse"][0]["hooks"][0]["command"]
+            result = subprocess.run(["sh", "-c", pre_tool], input="{}", env=env, capture_output=True, text=True)
+            self.assertEqual((result.returncode, result.stdout), (0, ""))
+
     def test_dry_run_writes_nothing(self):
         with tempfile.TemporaryDirectory() as home:
             subprocess.run([str(ROOT / "scripts" / "install-hooks"), "codex", "--dry-run"], env={"HOME": home, "PATH": "/usr/bin:/bin"}, check=True, capture_output=True)
             self.assertFalse((Path(home) / ".codex").exists())
+
+
+class GitHookTests(RepoTestCase):
+    def setUp(self):
+        super().setUp()
+        self.home = Path(self.tmp.name) / "home"
+        self.home.mkdir()
+        self.env = {**os.environ, "HOME": str(self.home), "XDG_CONFIG_HOME": str(self.home / ".config")}
+        subprocess.run([str(ROOT / "scripts" / "install-hooks"), "git"], env=self.env, check=True, capture_output=True)
+
+    def commit(self, *paths, message="x"):
+        for path in paths:
+            subprocess.run(["git", "-C", str(self.repo), "add", "-f", path], env=self.env, check=True)
+        return subprocess.run(["git", "-C", str(self.repo), "commit", "-q", "-m", message], env=self.env, capture_output=True, text=True)
+
+    def test_private_files_are_rejected(self):
+        (self.repo / ".private").mkdir()
+        (self.repo / ".private" / "plan.md").write_text("secret plan\n")
+        result = self.commit(".private/plan.md")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn(".private/plan.md", result.stderr)
+
+    def test_local_note_names_are_rejected(self):
+        (self.repo / "PROJECT_TASKS.md").write_text("x\n")
+        self.assertNotEqual(self.commit("PROJECT_TASKS.md").returncode, 0)
+
+    def test_secret_is_rejected(self):
+        (self.repo / "app.cfg").write_text("key=" + "sk-" + "a" * 30 + "\n")
+        self.assertNotEqual(self.commit("app.cfg").returncode, 0)
+
+    def test_ordinary_commit_passes(self):
+        # Negative control.
+        (self.repo / "app.py").write_text("print('hi')\n")
+        result = self.commit("app.py")
+        self.assertEqual(result.returncode, 0, result.stderr)
+
+    def test_repository_hooks_still_run(self):
+        hooks = self.repo / ".git" / "hooks"
+        (hooks / "pre-commit").write_text("#!/bin/sh\necho repo-hook-ran >&2\nexit 1\n")
+        (hooks / "pre-commit").chmod(0o755)
+        (hooks / "commit-msg").write_text("#!/bin/sh\ntouch \"$(git rev-parse --git-dir)/commit-msg-ran\"\n")
+        (hooks / "commit-msg").chmod(0o755)
+        (self.repo / "a.txt").write_text("a\n")
+        result = self.commit("a.txt")
+        self.assertIn("repo-hook-ran", result.stderr)
+        self.assertNotEqual(result.returncode, 0)
+        (hooks / "pre-commit").unlink()
+        self.assertEqual(self.commit("a.txt").returncode, 0)
+        self.assertTrue((self.repo / ".git" / "commit-msg-ran").exists())
+
+    def test_global_ignore_covers_private_folders(self):
+        (self.repo / ".private").mkdir()
+        (self.repo / ".private" / "n.md").write_text("x")
+        result = subprocess.run(["git", "-C", str(self.repo), "check-ignore", ".private/n.md"], env=self.env, capture_output=True)
+        self.assertEqual(result.returncode, 0)
+        ignore = (self.home / ".config" / "git" / "ignore").read_text()
+        subprocess.run([str(ROOT / "scripts" / "install-hooks"), "git"], env=self.env, check=True, capture_output=True)
+        self.assertEqual((self.home / ".config" / "git" / "ignore").read_text(), ignore)  # idempotent
+
+    def test_other_hooks_path_is_not_replaced_without_force(self):
+        subprocess.run(["git", "config", "--global", "core.hooksPath", "/elsewhere"], env=self.env, check=True)
+        result = subprocess.run([str(ROOT / "scripts" / "install-hooks"), "git"], env=self.env, capture_output=True, text=True)
+        self.assertEqual(result.returncode, 2)
 
 
 if __name__ == "__main__":
