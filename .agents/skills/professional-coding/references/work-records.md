@@ -47,6 +47,7 @@ Do not start a step until the previous one has its evidence. If a step is skippe
 |---|---|---|
 | 1. Request | The request in one line, its status | `.private/requests.md`; a public issue when it needs code |
 | 2. Research | Sources, access date, verified and unverified findings | `.private/research/` |
+| 2b. Clarify | Open questions answered until the requirement is unambiguous | Issue body; `.private/requests.md` |
 | 3. Plan | Steps and acceptance criteria | Issue checklist (public part), `.private/plans/` (details) |
 | 4. Decision | Options, evidence, choice, rejected alternatives | `.private/plans/NNNN-<title>.md` |
 | 5. Implement | Commits on `<type>/<issue>-<slug>` that reference the issue | Git history |
@@ -54,6 +55,11 @@ Do not start a step until the previous one has its evidence. If a step is skippe
 | 7. Test | Automated tests with negative controls; CI result | `tests/`, pull request |
 | 8. Record | Request status, how it was met, remaining work | `.private/requests.md`, session record, CHANGELOG |
 | 9. Pull request | `Closes #<issue>`; the user merges | GitHub |
+
+Step 2b (clarify): before planning, list what the request leaves open (users, inputs, limits,
+error cases, success criterion). Answer what the code, documents, or research can answer; ask
+the user only the questions whose answer changes what gets built, all at once and each with a
+recommended default. Do not ask again later for decisions already answered.
 
 Step 6 comes before step 7: a test suite that passes does not prove the feature works for the
 user. Verify the artifact the user actually runs first, then lock the behavior in with tests.

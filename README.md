@@ -15,12 +15,13 @@ It is designed to solve four recurring problems:
 
 ## Scope
 
-The current repository contains the initial implementation plan and a canonical `professional-coding` skill. The skill covers:
+The repository contains the canonical `professional-coding` skill, six focused skills (`verified-agent-rules`, `systematic-debugging`, `project-bootstrap`, `security-audit`, `github-readiness`, `code-quality-review`), generated adapters for each supported tool, agent and git hooks, and validation scripts. The skills cover:
 
 - Environment readiness and safe software-installation planning.
 - Local repository discovery and GitHub synchronization audits.
 - Evidence-based programming-language and toolchain selection.
-- English-only repository artifacts and selectable user communication language (English by default; system language suggested).
+- English-only repository artifacts; the user communication language comes from the project profile (`user_communication_language`) or the user's own instructions.
+- Continuous execution: agents carry requested work through and stop only for a closed list of reasons.
 - Issue, branch, commit, and pull-request governance.
 - Secret, personal-data, and stable-identifier protection.
 - External dependency provenance and private archival mirrors.
@@ -133,6 +134,7 @@ The focused skills are designed to be invoked by name after they have been insta
 
 ```text
 Evidence-first rules:        verified-agent-rules
+Debugging:                  systematic-debugging
 Security and privacy:       security-audit
 GitHub compatibility:       github-readiness
 Code quality:               code-quality-review
@@ -188,6 +190,14 @@ Mutation subcommands for `bootstrap` and `github-flow` are available only with e
 ```bash
 python3 -m unittest discover -s tests -v
 ```
+
+## Acknowledgements
+
+Some workflow ideas were adapted, in CoderSkill's own words and without copying text or code, from:
+
+- [obra/superpowers](https://github.com/obra/superpowers) (MIT): continuous plan execution with a closed list of stop reasons, the completion gate, systematic debugging.
+- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT): requirement clarification before planning, bug diagnosis.
+- [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) (no license; principles restated, no text used): simplicity first, surgical changes, success criteria per task.
 
 ## Privacy
 

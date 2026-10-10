@@ -7,7 +7,7 @@ Use this workflow when creating a project, resuming an existing project, selecti
 - Search only the configured repository root and local registry described in `environment-bootstrap.md`; do not crawl unrelated user directories or mounted volumes.
 - Look for an existing local folder and Git worktree that match the requested project and verified `droltr/<repository>` remote.
 - If multiple candidates exist, stop and ask the user to select one. Do not merge, delete, or rename candidates automatically.
-- If no project exists, propose a short, descriptive English name. Use lowercase kebab-case for the repository and folder unless the ecosystem requires another convention.
+- If no project exists, propose a short, descriptive English name. Use lowercase kebab-case for the repository and folder unless the ecosystem requires another convention. Record any difference between an existing folder name and its repository name instead of renaming.
 - Check local sibling names and the `droltr` GitHub namespace before finalizing the name.
 - Never include a username, hostname, device serial, physical location, local path fragment, customer name, or another personal or stable identifier in the project name.
 
@@ -16,7 +16,7 @@ Use this workflow when creating a project, resuming an existing project, selecti
 For an existing Git project, complete a read-only synchronization audit before changing files:
 
 1. Record the current branch, upstream, remotes, worktree status, submodules, and local commits not present upstream.
-2. Verify that `origin` points to the expected private `droltr/<repository>` target without embedded credentials.
+2. Verify that `origin` points to the expected `droltr/<repository>` target without embedded credentials, and that its visibility matches the project's recorded decision (private unless the profile says `visibility: public`).
 3. Fetch remote refs and prune only stale remote-tracking refs when network access is authorized. Fetching must not modify the worktree.
 4. Compare local and remote commits and classify the state as `equal`, `local-ahead`, `remote-ahead`, `diverged`, `no-upstream`, or `offline/unverified`.
 5. Preserve all uncommitted and untracked user work. Do not stash, reset, clean, rebase, merge, or switch branches merely to synchronize.
@@ -72,7 +72,7 @@ Before upload:
 1. Re-fetch and compare the target branch because it may have changed during local development.
 2. Reconcile remote changes without overwriting local or remote work.
 3. Run all required project checks, secret/PII/device-identifier scans, dependency review, and staged/branch diff inspection.
-4. Verify the target owner, private visibility, repository name, branch, issue, and pull-request base.
+4. Verify the target owner, recorded visibility, repository name, branch, issue, and pull-request base.
 5. Confirm that project documentation accurately describes purpose, problem, scope, platform/device specificity, setup, validation, safety, and rollback.
 6. Push only the topic branch and create or update a focused pull request. Use draft status for incomplete, experimental, or hardware-risking work.
 

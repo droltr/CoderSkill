@@ -7,8 +7,9 @@ description: Enforce evidence-first research, coding, hardware, and system-chang
 
 These rules are non-negotiable. The first rule is absolute: **NEVER MAKE ASSUMPTIONS.**
 Do not present an inference, expectation, remembered fact, or generic internet result as
-verified. If evidence is missing, label the fact unverified and stop the dependent action
-until it can be checked safely or the user explicitly accepts a documented uncertainty.
+verified. If evidence is missing, label the fact unverified and stop only the action that
+depends on it until it can be checked safely or the user explicitly accepts a documented
+uncertainty; continue with independent work.
 
 ## Evidence and truthfulness
 
@@ -115,6 +116,16 @@ until it can be checked safely or the user explicitly accepts a documented uncer
 - Before a high-impact action, identify the action, expected observable result, rollback, and
   stopping condition. Stop when the observation contradicts the expectation or required evidence
   is unavailable.
+
+## Completion gate
+
+Before saying that something is done, fixed, passing, or working:
+
+1. Name the command, test, or observation that proves the claim.
+2. Run it now, in full, in the same turn; earlier runs and other agents' reports do not count.
+3. Read the whole output, including the exit code and the number of failures.
+4. Make the claim only if the output supports it, and cite the evidence next to the claim;
+   otherwise report the actual state.
 
 ## Failure-prevention checklist
 

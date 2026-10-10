@@ -44,7 +44,7 @@ def start(args) -> int:
     if args.run and not args.confirm_account:
         print("Account confirmation required. Re-run with --confirm-account only after reviewing the identity and target.", file=sys.stderr)
         return 2
-    prompt = f"Use the professional-coding skill. Read the current project instructions and profile. GitHub repository: {repo}. Classify this directory, preserve main, select only applicable skills, and execute the complete validated workflow. Do not copy CoderSkill into this project. Do not perform destructive actions, credential operations, or hardware writes. Use English by default for user communication, suggest the detected system language, and ask the user to choose and persist a preference. Write repository artifacts in English."
+    prompt = f"Use the professional-coding skill. Read the current project instructions and profile. GitHub repository: {repo}. Classify this directory, preserve main, select only applicable skills, and execute the complete validated workflow. Do not copy CoderSkill into this project. Do not perform destructive actions, credential operations, or hardware writes. Communicate in the language set by the project profile or by the user's own instructions; if neither sets one, ask once and record it in the profile. Write repository artifacts in English. Carry the work through without asking whether to continue; stop only for the reasons listed in professional-coding."
     print(prompt)
     if not args.run: return 0
     agent = args.agent
@@ -64,7 +64,8 @@ def main():
     s = sub.add_parser("start"); s.add_argument("phrase", nargs="+"); s.add_argument("--github"); s.add_argument("--agent", choices=("codex", "claude", "gemini")); s.add_argument("--run", action="store_true"); s.add_argument("--confirm-account", action="store_true")
     args = parser.parse_args()
     if args.command == "install": return install(args.update)
-    if "execute" not in args.phrase or "order" not in args.phrase or "66" not in args.phrase: print("Use: coderskill start execute order 66", file=sys.stderr); return 2
+    phrase = " ".join(args.phrase).lower()
+    if phrase not in ("execute order 66", "projeye başla", "projeye basla"): print("Use: coderskill start execute order 66 (or: projeye başla)", file=sys.stderr); return 2
     return start(args)
 
 if __name__ == "__main__": raise SystemExit(main())

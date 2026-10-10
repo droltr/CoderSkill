@@ -39,7 +39,7 @@ HOOK = INSTALL_DIR / "hooks" / "coderskill_hook.py"
 GIT_PRE_COMMIT = INSTALL_DIR / "hooks" / "git_pre_commit.py"
 GIT_PRE_PUSH = INSTALL_DIR / "hooks" / "git_pre_push.py"
 GIT_HOOKS_DIR = INSTALL_DIR / "git-hooks"
-GLOBAL_IGNORES = (".private/", ".agent-sessions/")
+GLOBAL_IGNORES = (".private/", ".agent-sessions/", ".coderskill/local/")
 # Client-side hooks that are passed through to the repository's own hook.
 CHAINED_GIT_HOOKS = (
     "applypatch-msg", "pre-applypatch", "post-applypatch", "pre-merge-commit",

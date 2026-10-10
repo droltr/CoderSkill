@@ -40,6 +40,8 @@ def validate(data: dict) -> list[str]:
         errors.append("user_communication_language must be a language tag")
     if data.get("system_language_suggestion") != "auto":
         errors.append("system_language_suggestion must be auto")
+    if data.get("visibility", "private") not in ("private", "public"):
+        errors.append("visibility must be private or public (default private)")
     if not isinstance(data.get("active_profiles"), list) or not all(isinstance(item, str) for item in data.get("active_profiles", [])):
         errors.append("active_profiles must be a list of strings")
     return errors
