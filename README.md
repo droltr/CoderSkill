@@ -74,12 +74,13 @@ subagent and enforces the mandatory rules. It uses only the Python standard libr
 |---|---|
 | `SessionStart`, `SubagentStart` | Inject `hooks/session-context.md`, the local and GitHub sync state, open requests, and research notes from `.private/` |
 | `UserPromptSubmit` | Log each request to `.agent-sessions/requests.jsonl`; reinforce "stop" |
-| `PreToolUse` (Claude Code) | Deny PR merges, pushes to `main`, staged secrets, and non-GitHub-compatible new names; ask before hardware writes |
+| `PreToolUse` (Claude Code) | Deny PR merges, pushes to `main` (following `cd`, `git -C`, `HEAD`), `--no-verify`, secrets in the commit, and non-GitHub-compatible new names; ask before hardware writes, also inside `sudo`, `env`, `sh -c` |
 | `Stop` | Block once on unlabelled hedging; remind when records were not updated |
 | Git `pre-commit` (global) | Reject `.private/`, `.agent-sessions/`, local note files, and secrets in any commit; then run the repository's own hook |
+| Git `pre-push` (global) | Refuse updates to `main` or `master` on any remote, whatever the command spelling; the owner can allow one deliberate push with `CODERSKILL_ALLOW_PROTECTED_PUSH=1`; then run the repository's own hook |
 | `SessionEnd` | Copy the transcript to `.agent-sessions/transcripts/` |
 
-`.private/` (requests, research, plans, session records) and `.agent-sessions/` (prompt log, transcripts) stay local and are never pushed. Install for the agents you use; the hook files are copied to `~/.config/coderskill/` so they do not depend on the branch checked out here:
+`.private/` (requests, research, plans, session records) and `.agent-sessions/` (prompt log, transcripts) stay local and are never pushed. The hooks write to `.agent-sessions/` only when it is a real, git-ignored, untracked folder; a cloned repository cannot redirect these writes with symlinks or ignore rules. Install for the agents you use; the hook files are copied to `~/.config/coderskill/` so they do not depend on the branch checked out here:
 
 ```bash
 scripts/install-hooks claude codex git --dry-run   # show the result

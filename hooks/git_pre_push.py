@@ -1,0 +1,56 @@
+#!/usr/bin/env python3
+"""Git pre-push check: refuse updates to protected branches on any remote.
+
+Installed globally through `core.hooksPath` by `scripts/install-hooks git`. Git passes every
+ref it is about to push on stdin (`<local ref> <local sha> <remote ref> <remote sha>`, see
+https://git-scm.com/docs/githooks#_pre_push), so aliases, `HEAD`, `-C`, `cd` and wildcard
+refspecs are all covered, for agents and for manual pushes.
+
+The owner can allow a deliberate push for one command with
+`CODERSKILL_ALLOW_PROTECTED_PUSH=1 git push ...`; the agent hook denies that variable.
+After the check the repository's own `.git/hooks/pre-push` runs with the same input.
+"""
+
+from __future__ import annotations
+
+import os
+import subprocess
+import sys
+from pathlib import Path
+
+PROTECTED = {"refs/heads/main", "refs/heads/master"}
+OVERRIDE = "CODERSKILL_ALLOW_PROTECTED_PUSH"
+
+
+def blocked_refs(lines: list[str]) -> list[str]:
+    refs = []
+    for line in lines:
+        parts = line.split()
+        if len(parts) == 4 and parts[2] in PROTECTED:
+            refs.append(parts[2])
+    return refs
+
+
+def run_repository_hook(argv: list[str], data: str) -> int:
+    common = subprocess.run(
+        ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, check=False,
+    ).stdout.strip()
+    hook = Path(common) / "hooks" / "pre-push"
+    if common and hook.is_file() and os.access(hook, os.X_OK):
+        return subprocess.run([str(hook), *argv], input=data, text=True, check=False).returncode
+    return 0
+
+
+def main() -> int:
+    data = sys.stdin.read()
+    refs = blocked_refs(data.splitlines())
+    if refs and os.environ.get(OVERRIDE) != "1":
+        print(f"CoderSkill pre-push: refusing to update {', '.join(sorted(set(refs)))}.", file=sys.stderr)
+        print("Push a topic branch and open a pull request. For a deliberate owner push, run the command "
+              f"again with {OVERRIDE}=1.", file=sys.stderr)
+        return 1
+    return run_repository_hook(sys.argv[1:], data)
+
+
+if __name__ == "__main__":
+    sys.exit(main())

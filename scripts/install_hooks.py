@@ -31,18 +31,20 @@ INSTALL_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
 RUNTIME_FILES = {
     "hooks/coderskill_hook.py": "hooks/coderskill_hook.py",
     "hooks/git_pre_commit.py": "hooks/git_pre_commit.py",
+    "hooks/git_pre_push.py": "hooks/git_pre_push.py",
     "hooks/session-context.md": "hooks/session-context.md",
     "scripts/security_audit.py": "scripts/security_audit.py",
 }
 HOOK = INSTALL_DIR / "hooks" / "coderskill_hook.py"
 GIT_PRE_COMMIT = INSTALL_DIR / "hooks" / "git_pre_commit.py"
+GIT_PRE_PUSH = INSTALL_DIR / "hooks" / "git_pre_push.py"
 GIT_HOOKS_DIR = INSTALL_DIR / "git-hooks"
 GLOBAL_IGNORES = (".private/", ".agent-sessions/")
 # Client-side hooks that are passed through to the repository's own hook.
 CHAINED_GIT_HOOKS = (
     "applypatch-msg", "pre-applypatch", "post-applypatch", "pre-merge-commit",
     "prepare-commit-msg", "commit-msg", "post-commit", "pre-rebase", "post-checkout",
-    "post-merge", "pre-push", "pre-auto-gc", "post-rewrite",
+    "post-merge", "pre-auto-gc", "post-rewrite",
 )
 CHAIN_SCRIPT = """#!/bin/sh
 # CoderSkill: run the repository's own hook of the same name, if present.
@@ -143,7 +145,7 @@ def install_git(dry_run: bool, force: bool) -> int:
     existing = ignore.read_text(encoding="utf-8").splitlines() if ignore.is_file() else []
     missing = [line for line in GLOBAL_IGNORES if line not in existing]
     if dry_run:
-        print(f"--- git (dry run)\nhooks: {GIT_HOOKS_DIR} (pre-commit + {len(CHAINED_GIT_HOOKS)} chained)")
+        print(f"--- git (dry run)\nhooks: {GIT_HOOKS_DIR} (pre-commit, pre-push + {len(CHAINED_GIT_HOOKS)} chained)")
         print(f"git config --global core.hooksPath {GIT_HOOKS_DIR}")
         print(f"append to {ignore}: {missing or 'nothing'}")
         return 0
@@ -152,6 +154,9 @@ def install_git(dry_run: bool, force: bool) -> int:
     # Unlike the agent hooks, the git hook fails closed: a commit is refused if the check cannot run.
     pre_commit.write_text(f'#!/bin/sh\nexec python3 -I "{GIT_PRE_COMMIT}" "$@"\n', encoding="utf-8")
     pre_commit.chmod(0o755)
+    pre_push = GIT_HOOKS_DIR / "pre-push"
+    pre_push.write_text(f'#!/bin/sh\nexec python3 -I "{GIT_PRE_PUSH}" "$@"\n', encoding="utf-8")
+    pre_push.chmod(0o755)
     for name in CHAINED_GIT_HOOKS:
         path = GIT_HOOKS_DIR / name
         path.write_text(CHAIN_SCRIPT, encoding="utf-8")

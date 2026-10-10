@@ -26,11 +26,12 @@ import argparse
 import fnmatch
 import hashlib
 import json
+import os
 import re
 import shlex
-import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from pathlib import Path
 
@@ -65,7 +66,8 @@ HARDWARE_WRITES = {
     "ectool": (),
     "dd": ("of=/dev/",),
 }
-NAME_ALLOWED = re.compile(r"^[A-Za-z0-9._@+\[\]-]+$")
+NAME_ALLOWED = re.compile(r"^[A-Za-z0-9._@\[\]-]+$")  # [] and @ for framework names (e.g. [id].tsx, icon@2x.png)
+WINDOWS_RESERVED = re.compile(r"^(con|prn|aux|nul|com[1-9]|lpt[1-9])(\..*)?$", re.IGNORECASE)
 NAME_SKIP_PARTS = {".git", "node_modules", "vendor", "third_party", "third-party", ".venv"}
 HEDGES = re.compile(
     r"\b(probably|most likely|likely|presumably|muhtemelen|büyük ihtimalle|büyük olasılıkla|sanırım|galiba|herhalde)\b",
@@ -92,14 +94,59 @@ def project_root(cwd: str | None) -> Path | None:
     return Path(result.stdout.strip()) if result.returncode == 0 and result.stdout.strip() else None
 
 
-def local_dir(root: Path) -> Path:
-    """Create the git-ignored local record folder and return it."""
+LOCAL_IGNORE = "# Local agent session data. Never commit.\n*\n"
+
+
+def local_dir(root: Path) -> Path | None:
+    """Return the git-ignored local record folder, or None when it is not safe to write.
+
+    A cloned repository is untrusted: it may track files or symlinks under the folder, or
+    un-ignore it, to redirect prompts and transcripts into tracked or arbitrary files.
+    """
     path = root / LOCAL_DIR
+    if path.is_symlink() or git_out(root, "ls-files", "--", LOCAL_DIR):
+        return None
     path.mkdir(exist_ok=True)
+    if path.resolve() != root.resolve() / LOCAL_DIR:
+        return None
     ignore = path / ".gitignore"
-    if not ignore.exists():
-        ignore.write_text("# Local agent session data. Never commit.\n*\n", encoding="utf-8")
+    if ignore.is_symlink():
+        return None
+    if not ignore.exists() or ignore.read_text(encoding="utf-8", errors="replace") != LOCAL_IGNORE:
+        write_replacing(ignore, LOCAL_IGNORE.encode())
+    # The repository's own .gitignore can re-include the folder; refuse in that case.
+    probe = subprocess.run(
+        ["git", "-C", str(root), "check-ignore", "-q", f"{LOCAL_DIR}/requests.jsonl"],
+        capture_output=True, timeout=5, check=False,
+    )
+    return path if probe.returncode == 0 else None
+
+
+def safe_subdir(base: Path, name: str) -> Path | None:
+    """Create base/name unless it is a symlink."""
+    path = base / name
+    if path.is_symlink():
+        return None
+    path.mkdir(exist_ok=True)
     return path
+
+
+def write_replacing(target: Path, data: bytes) -> None:
+    """Write through a new temporary file and rename it, so a symlink at target is replaced."""
+    fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.")
+    try:
+        with os.fdopen(fd, "wb") as handle:
+            handle.write(data)
+        os.replace(tmp, target)
+    except BaseException:
+        Path(tmp).unlink(missing_ok=True)
+        raise
+
+
+def append_no_follow(target: Path, text: str) -> None:
+    fd = os.open(target, os.O_WRONLY | os.O_CREAT | os.O_APPEND | os.O_NOFOLLOW, 0o600)
+    with os.fdopen(fd, "a", encoding="utf-8") as handle:
+        handle.write(text)
 
 
 def current_branch(cwd: str) -> str:
@@ -153,10 +200,10 @@ def git_out(root: Path, *args: str) -> str:
 
 def signing_configured(root: Path) -> bool:
     """True when git will sign commits here with a key file that exists."""
-    if git_out(root, "config", "--get", "commit.gpgsign").lower() != "true":
+    if git_out(root, "config", "--type=bool", "--get", "commit.gpgsign") != "true":
         return False
     key = git_out(root, "config", "--get", "user.signingkey")
-    if git_out(root, "config", "--get", "gpg.format") == "ssh":
+    if git_out(root, "config", "--get", "gpg.format") == "ssh" and not key.startswith("key::"):
         return bool(key) and Path(key).expanduser().is_file()
     return bool(key)
 
@@ -203,6 +250,7 @@ def session_start(data: dict, subagent: bool = False) -> dict:
     text = CONTEXT_FILE.read_text(encoding="utf-8")
     root = project_root(data.get("cwd"))
     if root and not subagent:
+        save_snapshot(root, data.get("session_id"))
         notes = [f"\nProject root: {root.name}"]
         if (root / ".coderskill" / "project.yml").is_file():
             notes.append("Project profile: .coderskill/project.yml (read it).")
@@ -238,8 +286,9 @@ def prompt(data: dict, agent: str) -> dict | None:
             "session_id": data.get("session_id"),
             "prompt": text,
         }
-        with open(local_dir(root) / "requests.jsonl", "a", encoding="utf-8") as handle:
-            handle.write(json.dumps(record, ensure_ascii=False) + "\n")
+        folder = local_dir(root)
+        if folder:
+            append_no_follow(folder / "requests.jsonl", json.dumps(record, ensure_ascii=False) + "\n")
     if text.strip().lower() in STOP_WORDS:
         return context_output(
             "UserPromptSubmit",
@@ -252,67 +301,192 @@ def prompt(data: dict, agent: str) -> dict | None:
 # ---------------------------------------------------------------- pre tool use
 
 
-def split_commands(command: str) -> list[list[str]]:
-    """Split a shell command line into simple commands (best effort, no execution)."""
-    parts = re.split(r"\|\||&&|;|\||\n", command)
+HEREDOC = re.compile(r"<<(-?)\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\2")
+SEPARATORS = re.compile(r"\|\||&&|;|\||(?<![<>&])&(?![&>])|\n")
+# Options of sudo/doas that take a value.
+SUDO_VALUE_OPTIONS = {"-u", "-g", "-h", "-p", "-C", "-D", "-r", "-t", "-U", "-T", "--user", "--group",
+                      "--host", "--prompt", "--chdir", "--role", "--type", "--other-user", "--command-timeout"}
+ENV_VALUE_OPTIONS = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}
+SHELLS = {"sh", "bash", "zsh", "dash", "ksh"}
+OVERRIDE_VARIABLE = "CODERSKILL_ALLOW_PROTECTED_PUSH"
+# git commit options whose value is the next argument.
+COMMIT_VALUE_OPTIONS = {"-m", "-F", "-c", "-C", "-t", "--message", "--file", "--author", "--date",
+                        "--template", "--reuse-message", "--reedit-message", "--fixup", "--squash", "--cleanup"}
+ZERO_SHA = "0" * 40
+
+
+def strip_heredocs(command: str) -> str:
+    """Remove here-document bodies: they are data for a command, not commands."""
+    lines, kept, delimiter, strip_tabs = command.split("\n"), [], None, False
+    for line in lines:
+        if delimiter is not None:
+            if (line.lstrip("\t") if strip_tabs else line) == delimiter:
+                delimiter = None
+            continue
+        kept.append(line)
+        match = HEREDOC.search(line)
+        if match:
+            strip_tabs, delimiter = match.group(1) == "-", match.group(3)
+    return "\n".join(kept)
+
+
+def unwrap(tokens: list[str]) -> list[str] | str:
+    """Drop wrappers such as VAR=value, sudo -u x, env -i, nice -n 5, timeout 10.
+
+    Returns the remaining tokens, or the inner command string of `sh -c` / `eval`.
+    """
+    while tokens:
+        head = Path(tokens[0]).name
+        if "=" in tokens[0] and not tokens[0].startswith("-") and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0]):
+            tokens = tokens[1:]
+        elif head in ("sudo", "doas", "env"):
+            values = SUDO_VALUE_OPTIONS if head != "env" else ENV_VALUE_OPTIONS
+            rest = tokens[1:]
+            while rest and (rest[0].startswith("-") or (head == "env" and "=" in rest[0])):
+                option = rest.pop(0)
+                if option == "--":
+                    break
+                if option in values and rest:
+                    rest.pop(0)
+            tokens = rest
+        elif head in ("exec", "command", "nohup", "time", "builtin"):
+            tokens = tokens[1:]
+        elif head == "nice":
+            rest = tokens[1:]
+            if rest[:1] == ["-n"]:
+                rest = rest[2:]
+            elif rest and rest[0].startswith("-"):
+                rest = rest[1:]
+            tokens = rest
+        elif head == "timeout":
+            rest = tokens[1:]
+            while rest and rest[0].startswith("-"):
+                option = rest.pop(0)
+                if option in ("-s", "--signal", "-k", "--kill-after") and rest:
+                    rest.pop(0)
+            tokens = rest[1:]  # drop the duration
+        elif head in SHELLS and "-c" in tokens[1:]:
+            index = tokens.index("-c")
+            return tokens[index + 1] if index + 1 < len(tokens) else ""
+        elif head == "eval":
+            return " ".join(tokens[1:])
+        else:
+            return tokens
+    return tokens
+
+
+def split_commands(command: str, cwd: str, depth: int = 0) -> list[tuple[list[str], str, list[str]]]:
+    """Split a shell command line into (tokens, working directory, assignments). No execution.
+
+    Follows `cd <dir>` and nested `sh -c` / `eval` strings. This is best effort: the git
+    pre-push hook and the agent permission system remain the hard boundaries.
+    """
     commands = []
-    for part in parts:
+    for part in SEPARATORS.split(strip_heredocs(command)):
         try:
             tokens = shlex.split(part, comments=True)
         except ValueError:
             tokens = part.split()
-        while tokens and ("=" in tokens[0] and not tokens[0].startswith("-")) and tokens[0] not in ("=",):
-            tokens = tokens[1:]  # drop leading VAR=value assignments
-        while tokens and tokens[0] in ("sudo", "doas", "env", "exec", "command", "nohup", "time"):
-            tokens = tokens[1:]
-        if tokens:
-            commands.append(tokens)
+        assignments = [t.split("=", 1)[0] for t in tokens if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t)]
+        if tokens and tokens[0] == "cd":
+            if len(tokens) > 1:
+                cwd = os.path.join(cwd, os.path.expanduser(tokens[1]))
+            continue
+        inner = unwrap(tokens)
+        if isinstance(inner, str):
+            if depth < 3:
+                commands.extend(split_commands(inner, cwd, depth + 1))
+            continue
+        if inner:
+            commands.append((inner, cwd, assignments))
     return commands
 
 
-def git_args(tokens: list[str]) -> list[str] | None:
-    """Return git arguments without global options, or None if not a git command."""
+def git_args(tokens: list[str], cwd: str) -> tuple[list[str], str] | None:
+    """Return (git arguments without global options, repository directory), or None."""
     if Path(tokens[0]).name != "git":
         return None
     args = tokens[1:]
     while args and args[0].startswith("-"):
         option = args.pop(0)
-        if option in ("-C", "-c", "--git-dir", "--work-tree") and args:
+        if option == "-C" and args:
+            cwd = os.path.join(cwd, os.path.expanduser(args.pop(0)))
+        elif option in ("-c", "--git-dir", "--work-tree", "--namespace") and args:
             args.pop(0)
-    return args
+    return args, cwd
+
+
+def push_targets(refspecs: list[str], cwd: str) -> list[str]:
+    """Remote branch names a push would update, as far as the command line shows them."""
+    targets = []
+    for ref in refspecs:
+        ref = ref.removeprefix("+")
+        destination = ref.split(":", 1)[1] if ":" in ref else ref
+        if destination in ("HEAD", "@"):
+            destination = current_branch(cwd)
+        targets.append(destination.removeprefix("refs/heads/"))
+    return targets
+
+
+def commit_includes_worktree(rest: list[str]) -> bool:
+    """True when `git commit` takes changes beyond the index (-a, --all, -i/-o, or pathspecs)."""
+    index = 0
+    while index < len(rest):
+        arg = rest[index]
+        index += 1
+        if arg == "--":
+            return index < len(rest)
+        if arg in ("--all", "--include", "--only", "-i", "-o"):
+            return True
+        if arg.startswith("--"):
+            if arg in COMMIT_VALUE_OPTIONS:
+                index += 1
+            continue
+        if arg.startswith("-") and len(arg) > 1:
+            for position, letter in enumerate(arg[1:]):
+                if letter == "a":
+                    return True
+                if letter in "mFcCt":
+                    if position == len(arg) - 2:
+                        index += 1  # the value is the next argument
+                    break
+            continue
+        return True  # a pathspec
+    return False
 
 
 def check_git(args: list[str], cwd: str) -> tuple[str, str] | None:
     if not args:
         return None
     sub, rest = args[0], args[1:]
+    if sub in ("push", "commit") and ("--no-verify" in rest or (sub == "commit" and "-n" in rest)):
+        return "deny", "CoderSkill: --no-verify skips the git hooks that protect main and block secrets."
     if sub == "push":
         if any(flag in rest for flag in ("--all", "--mirror")):
             return "deny", "CoderSkill: pushing all branches or mirroring is not allowed; push a topic branch."
         positional = [a for a in rest if not a.startswith("-")]
         refspecs = positional[1:]
-        for ref in refspecs:
-            target = ref.split(":")[-1].removeprefix("+").removeprefix("refs/heads/")
+        targets = push_targets(refspecs, cwd) if refspecs else [current_branch(cwd)]
+        for target in targets:
             # A wildcard refspec such as refs/heads/*:refs/heads/* also writes main.
-            hit = [b for b in PROTECTED_BRANCHES if fnmatch.fnmatchcase(b, target)]
+            hit = [b for b in PROTECTED_BRANCHES if target and fnmatch.fnmatchcase(b, target)]
             if hit:
                 return "deny", f"CoderSkill: never push to {hit[0]}. Push a topic branch and open a pull request; the user merges."
-        if not refspecs and current_branch(cwd) in PROTECTED_BRANCHES:
-            return "deny", "CoderSkill: the current branch is protected. Create a topic branch and push that."
     if sub == "merge" and current_branch(cwd) in PROTECTED_BRANCHES:
         return "deny", "CoderSkill: merging into a protected branch is the user's action."
     if sub == "commit":
-        finding = staged_secret(cwd)
+        finding = staged_secret(cwd, worktree=commit_includes_worktree(rest))
         if finding:
-            return "deny", f"CoderSkill: staged changes contain a {finding}. Remove it before committing."
+            return "deny", f"CoderSkill: the commit would contain a {finding}. Remove it before committing."
     return None
 
 
-def staged_secret(cwd: str) -> str | None:
-    """Return a redacted description of the first secret in added staged lines."""
+def staged_secret(cwd: str, worktree: bool = False) -> str | None:
+    """Return a redacted description of the first secret in lines the commit would add."""
+    diff_args = ["diff", "HEAD"] if worktree else ["diff", "--cached"]
     try:
         diff = subprocess.run(
-            ["git", "-C", cwd, "diff", "--cached", "--no-color", "-U0"],
+            ["git", "-C", cwd, *diff_args, "--no-color", "-U0"],
             capture_output=True, text=True, timeout=20, check=False,
         ).stdout
     except (OSError, subprocess.SubprocessError):
@@ -349,16 +523,23 @@ def check_hardware(tokens: list[str]) -> tuple[str, str] | None:
     )
 
 
+def merges_pull_request(tokens: list[str]) -> bool:
+    if Path(tokens[0]).name != "gh":
+        return False
+    if tokens[1:3] == ["pr", "merge"]:
+        return True
+    return len(tokens) > 1 and tokens[1] == "api" and any(re.search(r"pulls/\d+/merge", t) for t in tokens[2:])
+
+
 def bash_decision(command: str, cwd: str) -> tuple[str, str] | None:
-    lowered = command.lower()
-    if re.search(r"\bgh\s+pr\s+merge\b", lowered) or (
-        re.search(r"\bgh\s+api\b", lowered) and re.search(r"pulls/\d+/merge", lowered)
-    ):
-        return "deny", "CoderSkill: the user performs every merge. Report that the pull request is ready instead."
     result = None
-    for tokens in split_commands(command):
-        args = git_args(tokens)
-        found = check_git(args, cwd) if args is not None else check_hardware(tokens)
+    for tokens, directory, assignments in split_commands(command, cwd):
+        if OVERRIDE_VARIABLE in assignments:
+            return "deny", f"CoderSkill: {OVERRIDE_VARIABLE} is reserved for the user."
+        if merges_pull_request(tokens):
+            return "deny", "CoderSkill: the user performs every merge. Report that the pull request is ready instead."
+        parsed = git_args(tokens, directory)
+        found = check_git(*parsed) if parsed is not None else check_hardware(tokens)
         if found and found[0] == "deny":
             return found
         result = result or found
@@ -374,11 +555,13 @@ def write_decision(file_path: str) -> tuple[str, str] | None:
     while not probe.exists() and probe != probe.parent:
         new_parts.append(probe.name)
         probe = probe.parent
-    bad = [part for part in new_parts if part and not NAME_ALLOWED.match(part)]
+    bad = [part for part in new_parts
+           if part and (not NAME_ALLOWED.match(part) or part.endswith(".") or WINDOWS_RESERVED.match(part))]
     if bad:
         return "deny", (
             f"CoderSkill: new name {bad[0]!r} is not GitHub-compatible. Use ASCII letters, digits, "
-            "'.', '-' and '_' only (kebab-case), no spaces or special characters."
+            "'.', '-' and '_' only (kebab-case), no spaces or special characters, no trailing dot, "
+            "and no Windows reserved names such as CON or NUL."
         )
     return None
 
@@ -436,32 +619,54 @@ def stop(data: dict) -> dict | None:
     return None
 
 
-def records_missing(root: Path, session_id: str | None) -> bool:
-    """True when this session logged requests and changed files but touched no record."""
-    log = root / LOCAL_DIR / "requests.jsonl"
-    if not log.is_file() or not session_id:
-        return False
-    started = None
-    for line in log.read_text(encoding="utf-8", errors="replace").splitlines():
-        try:
-            entry = json.loads(line)
-        except json.JSONDecodeError:
+SESSION_ID = re.compile(r"^[A-Za-z0-9_-]{1,128}$")
+
+
+def worktree_state(root: Path) -> dict[str, str]:
+    """Map each changed path to its status and modification time."""
+    state = {}
+    for line in git_out(root, "status", "--porcelain", "--untracked-files=all").splitlines():
+        path = line[3:]
+        if not path or path.startswith(LOCAL_DIR):
             continue
-        if entry.get("session_id") == session_id:
-            started = entry.get("time")
-            break
-    if started is None:
+        try:
+            mtime = (root / path).stat().st_mtime_ns
+        except OSError:
+            mtime = 0
+        state[path] = f"{line[:2]}:{mtime}"
+    return state
+
+
+def snapshot_file(root: Path, session_id: str | None) -> Path | None:
+    folder = local_dir(root)
+    if not folder or not session_id or not SESSION_ID.fullmatch(session_id):
+        return None
+    state_dir = safe_subdir(folder, "state")
+    return state_dir / f"{session_id}.json" if state_dir else None
+
+
+def save_snapshot(root: Path, session_id: str | None) -> None:
+    """Record the work-tree state at session start, so later checks see only this session's changes."""
+    path = snapshot_file(root, session_id)
+    if path and not path.exists():
+        data = {"started": time.time(), "state": worktree_state(root)}
+        write_replacing(path, json.dumps(data).encode())
+
+
+def records_missing(root: Path, session_id: str | None) -> bool:
+    """True when files changed during this session but no record was touched."""
+    path = snapshot_file(root, session_id)
+    if not path or not path.is_file() or path.is_symlink():
         return False
     try:
-        status = subprocess.run(
-            ["git", "-C", str(root), "status", "--porcelain"],
-            capture_output=True, text=True, timeout=10, check=False,
-        ).stdout
-    except (OSError, subprocess.SubprocessError):
+        snapshot = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
         return False
-    changed = [line[3:] for line in status.splitlines() if line[3:] and not line[3:].startswith(LOCAL_DIR)]
+    before = snapshot.get("state", {})
+    changed = [p for p, value in worktree_state(root).items() if before.get(p) != value]
     if not changed:
         return False
+    started = snapshot.get("started", 0)
     records = [*(root / r for r in REQUEST_FILES), *(root / PRIVATE_DIR / "sessions").glob("*.md")]
     return not any(p.is_file() and p.stat().st_mtime >= started for p in records)
 
@@ -474,13 +679,24 @@ def session_end(data: dict, agent: str) -> None:
     root = project_root(data.get("cwd"))
     if not source or not root or not Path(source).is_file():
         return
-    target_dir = local_dir(root) / "transcripts"
-    target_dir.mkdir(exist_ok=True)
+    folder = local_dir(root)
+    target_dir = safe_subdir(folder, "transcripts") if folder else None
+    if not target_dir:
+        return
     source_path = Path(source)
-    shutil.copy2(source_path, target_dir / f"{agent}-{source_path.name}")
+    write_replacing(target_dir / f"{agent}-{source_path.name}", source_path.read_bytes())
     subagents = source_path.with_suffix("") / "subagents"
-    if subagents.is_dir():
-        shutil.copytree(subagents, target_dir / f"{agent}-{source_path.stem}-subagents", dirs_exist_ok=True)
+    if not subagents.is_dir():
+        return
+    copy_root = safe_subdir(target_dir, f"{agent}-{source_path.stem}-subagents")
+    for item in sorted(subagents.rglob("*")):
+        if copy_root is None or item.is_symlink() or not item.is_file():
+            continue
+        parent = copy_root
+        for part in item.relative_to(subagents).parent.parts:
+            parent = safe_subdir(parent, part) if parent else None
+        if parent:
+            write_replacing(parent / item.name, item.read_bytes())
 
 
 # ---------------------------------------------------------------- main

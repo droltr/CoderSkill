@@ -87,6 +87,13 @@ class SessionStartTests(RepoTestCase):
         context = run_hook("session-start", {"cwd": str(self.repo)})["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Commit signing is not configured", context)
 
+    def test_signing_with_yes_and_inline_key_is_recognised(self):
+        git(self.repo, "config", "commit.gpgsign", "yes")
+        git(self.repo, "config", "gpg.format", "ssh")
+        git(self.repo, "config", "user.signingkey", "key::ssh-ed25519 AAAA test")
+        context = run_hook("session-start", {"cwd": str(self.repo)})["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("Commit signing is not configured", context)
+
     def test_configured_signing_is_not_reported(self):
         # Negative control: an existing SSH signing key and commit.gpgsign=true.
         key = Path(self.tmp.name) / "signing.pub"
@@ -181,6 +188,43 @@ class GitRuleTests(RepoTestCase):
         self.assertIsNone(self.bash("git add -A && git commit -m notes"))
 
 
+    def test_head_and_at_on_main_are_denied(self):
+        self.assertEqual(self.bash("git push origin HEAD"), "deny")
+        self.assertEqual(self.bash("git push origin @"), "deny")
+        self.assertEqual(self.bash("git push origin main&"), "deny")
+
+    def test_head_on_topic_branch_is_allowed(self):
+        # Negative control.
+        git(self.repo, "switch", "-q", "-c", "feat/x")
+        self.assertIsNone(self.bash("git push -u origin HEAD"))
+
+    def test_other_repository_on_main_is_checked(self):
+        other = Path(self.tmp.name) / "other"
+        git(self.tmp.name, "clone", "-q", str(self.repo), str(other))
+        git(self.repo, "switch", "-q", "-c", "feat/x")  # the session repository is on a topic branch
+        self.assertEqual(self.bash(f"git -C {other} push"), "deny")
+        self.assertEqual(self.bash(f"cd {other} && git push"), "deny")
+        self.assertIsNone(self.bash("git push"))  # negative control: session repository
+
+    def test_no_verify_and_override_variable_are_denied(self):
+        git(self.repo, "switch", "-q", "-c", "feat/x")
+        self.assertEqual(self.bash("git push --no-verify origin feat/x"), "deny")
+        self.assertEqual(self.bash("git commit --no-verify -m x"), "deny")
+        self.assertEqual(self.bash("CODERSKILL_ALLOW_PROTECTED_PUSH=1 git push origin main"), "deny")
+
+    def test_commit_all_scans_unstaged_changes(self):
+        (self.repo / "README.md").write_text("token=" + "ghp_" + "B" * 36 + "\n")
+        self.assertEqual(self.bash("git commit -am update"), "deny")
+        self.assertEqual(self.bash("git commit -m update README.md"), "deny")
+        # Negative control: a plain commit takes only the (clean) index.
+        self.assertIsNone(self.bash("git commit -m 'update docs'"))
+
+    def test_merge_text_inside_a_heredoc_is_allowed(self):
+        command = "cat > notes.md <<'EOF'\nRun gh pr merge 73 --squash when ready.\nEOF"
+        self.assertIsNone(self.bash(command))
+        self.assertEqual(self.bash("echo ok && gh pr merge 73 --squash"), "deny")
+
+
 class HardwareRuleTests(RepoTestCase):
     def test_hardware_writes_ask(self):
         for command in (
@@ -192,6 +236,18 @@ class HardwareRuleTests(RepoTestCase):
         ):
             with self.subTest(command=command):
                 self.assertEqual(self.bash(command), "ask")
+
+    def test_wrapped_hardware_writes_ask(self):
+        for command in (
+            "sudo -u root i2cset -y 1 0x50 0 1",
+            "sudo -E nvidia-smi -pl 100",
+            "env -i PATH=/usr/bin i2cset -y 1 0x50 0 1",
+            "bash -c 'i2cset -y 1 0x50 0 1'",
+            "timeout 5 liquidctl set fan speed 40",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(self.bash(command), "ask")
+        self.assertIsNone(self.bash("bash -c 'echo hello'"))  # negative control
 
     def test_read_only_hardware_commands_pass(self):
         # Negative control: reads must not prompt.
@@ -209,6 +265,9 @@ class NameRuleTests(RepoTestCase):
         self.assertEqual(self.write(self.repo / "my notes.md"), "deny")
         self.assertEqual(self.write(self.repo / "türkçe.md"), "deny")
         self.assertEqual(self.write(self.repo / "bad (copy)" / "file.md"), "deny")
+        for name in ("notes+old.md", "release.", "CON.md", "nul", "com1.txt"):
+            with self.subTest(name=name):
+                self.assertEqual(self.write(self.repo / name), "deny")
 
     def test_good_and_framework_names_pass(self):
         # Negative control.
@@ -240,6 +299,7 @@ class StopTests(RepoTestCase):
         self.assertIsNone(self.stop("This is probably fine.", active=True))
 
     def test_record_reminder(self):
+        run_hook("session-start", {"cwd": str(self.repo), "session_id": "s"})
         run_hook("prompt", {"cwd": str(self.repo), "session_id": "s", "prompt": "change it"})
         (self.repo / "README.md").write_text("changed\n")
         output = self.stop("Done (source: tests).")
@@ -248,6 +308,71 @@ class StopTests(RepoTestCase):
         private.mkdir()
         (private / "requests.md").write_text("| 1 | change it | ✅ | README.md |\n")
         self.assertIsNone(self.stop("Done (source: tests)."))
+
+
+    def test_changes_before_the_session_do_not_trigger_the_reminder(self):
+        # Negative control for the reminder: the file was already modified before the session.
+        (self.repo / "README.md").write_text("changed before\n")
+        run_hook("session-start", {"cwd": str(self.repo), "session_id": "s2"})
+        self.assertIsNone(self.stop("Answered a question (source: README.md)."))
+
+
+class UntrustedRepositoryTests(RepoTestCase):
+    """A cloned repository must not be able to redirect prompts or transcripts."""
+
+    def setUp(self):
+        super().setUp()
+        self.transcript = Path(self.tmp.name) / "t1.jsonl"
+        self.transcript.write_text('{"secret": "transcript"}\n')
+
+    def run_session(self):
+        run_hook("prompt", {"cwd": str(self.repo), "session_id": "s", "prompt": "my private prompt"})
+        run_hook("session-end", {"cwd": str(self.repo), "transcript_path": str(self.transcript)})
+
+    def tracked_text(self):
+        return "".join(p.read_text(errors="replace") for p in self.repo.rglob("*")
+                       if p.is_file() and ".git" not in p.parts and ".agent-sessions" not in p.parts)
+
+    def commit_symlinks(self, links):
+        folder = self.repo / ".agent-sessions"
+        folder.mkdir(exist_ok=True)
+        for name, target in links.items():
+            (folder / name).symlink_to(target)
+        git(self.repo, "add", "-f", ".agent-sessions")
+        git(self.repo, "commit", "-q", "--no-verify", "-m", "attack")
+
+    def test_symlinked_log_and_transcripts_are_not_followed(self):
+        (self.repo / "docs").mkdir()
+        self.commit_symlinks({"requests.jsonl": "../README.md", "transcripts": "../docs"})
+        self.run_session()
+        self.assertNotIn("my private prompt", self.tracked_text())
+        self.assertEqual(list((self.repo / "docs").iterdir()), [])
+
+    def test_symlinked_folder_is_not_used(self):
+        outside = Path(self.tmp.name) / "outside"
+        outside.mkdir()
+        (self.repo / ".agent-sessions").symlink_to(outside)
+        self.run_session()
+        self.assertEqual(list(outside.iterdir()), [])
+
+    def test_repository_that_unignores_the_folder_is_not_used(self):
+        (self.repo / ".gitignore").write_text("!.agent-sessions/\n!.agent-sessions/**\n")
+        (self.repo / ".agent-sessions").mkdir()
+        (self.repo / ".agent-sessions" / ".gitignore").write_text("!*\n")
+        git(self.repo, "add", ".gitignore")
+        git(self.repo, "commit", "-q", "--no-verify", "-m", "unignore")
+        self.run_session()
+        status = git(self.repo, "status", "--porcelain", "--untracked-files=all").stdout
+        self.assertNotIn("requests.jsonl", status)
+        self.assertNotIn("t1.jsonl", status)
+
+    def test_clean_repository_still_records(self):
+        # Negative control: the safe path must keep working.
+        self.run_session()
+        folder = self.repo / ".agent-sessions"
+        self.assertIn("my private prompt", (folder / "requests.jsonl").read_text())
+        self.assertTrue((folder / "transcripts" / "claude-t1.jsonl").is_file())
+        self.assertEqual(git(self.repo, "status", "--porcelain").stdout, "")
 
 
 class SessionEndTests(RepoTestCase):
@@ -358,6 +483,36 @@ class GitHookTests(RepoTestCase):
         ignore = (self.home / ".config" / "git" / "ignore").read_text()
         subprocess.run([str(ROOT / "scripts" / "install-hooks"), "git"], env=self.env, check=True, capture_output=True)
         self.assertEqual((self.home / ".config" / "git" / "ignore").read_text(), ignore)  # idempotent
+
+    def push(self, refspec, **env):
+        remote = Path(self.tmp.name) / "remote.git"
+        if not remote.exists():
+            subprocess.run(["git", "init", "-q", "--bare", str(remote)], check=True)
+            subprocess.run(["git", "-C", str(self.repo), "remote", "add", "origin", str(remote)], check=True)
+        return subprocess.run(["git", "-C", str(self.repo), "push", "-q", "origin", refspec],
+                              env={**self.env, **env}, capture_output=True, text=True)
+
+    def test_push_to_main_is_refused_by_git(self):
+        for refspec in ("main", "HEAD", "HEAD:refs/heads/main", "refs/heads/*:refs/heads/*"):
+            with self.subTest(refspec=refspec):
+                result = self.push(refspec)
+                self.assertNotEqual(result.returncode, 0)
+                self.assertIn("refusing to update refs/heads/main", result.stderr)
+
+    def test_topic_branch_push_and_owner_override_pass(self):
+        # Negative controls: a topic branch, and an explicit owner override.
+        git(self.repo, "branch", "feat/x")
+        self.assertEqual(self.push("feat/x").returncode, 0)
+        self.assertEqual(self.push("main", CODERSKILL_ALLOW_PROTECTED_PUSH="1").returncode, 0)
+
+    def test_repository_pre_push_hook_still_runs(self):
+        hook = self.repo / ".git" / "hooks" / "pre-push"
+        hook.write_text("#!/bin/sh\necho repo-pre-push-ran >&2\nexit 1\n")
+        hook.chmod(0o755)
+        git(self.repo, "branch", "feat/y")
+        result = self.push("feat/y")
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("repo-pre-push-ran", result.stderr)
 
     def test_other_hooks_path_is_not_replaced_without_force(self):
         subprocess.run(["git", "config", "--global", "core.hooksPath", "/elsewhere"], env=self.env, check=True)
