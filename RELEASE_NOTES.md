@@ -4,6 +4,16 @@ This file records user-visible changes and durable workflow or security decision
 
 ## Unreleased
 
+### Documentation
+
+- New README and a `docs/` site: overview and architecture, installation and updates, workflow and
+  records, hooks, security model, commands, troubleshooting, and one page per skill with its purpose,
+  rules and their reasons, working logic and relationships.
+- PLAN.md (out-of-date plan) and SESSION_RECORD.md (session record) removed; their valid content is in
+  `docs/`.
+- `github-readiness` checks the visibility recorded in the project profile instead of assuming a
+  private repository.
+
 ### Signed skill updates
 
 - `coderskill install` installs only the signed `origin/main` of the CoderSkill clone (GitHub web-flow key pinned, or the owner's SSH signers); every new commit must be signed. `--worktree` keeps the old behaviour for the owner.
