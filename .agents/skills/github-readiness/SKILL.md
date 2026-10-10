@@ -15,7 +15,7 @@ Use the project profile to select only relevant GitHub capabilities. Actions and
 
 - Confirm the path is a Git worktree and preserve all user changes.
 - Inspect branch, upstream, remote URLs, ahead/behind/divergence, untracked files, submodules, and published history without exposing embedded credentials or personal paths.
-- Verify `origin` targets the intended private `droltr/<repository>` project and `main` is the reviewed baseline.
+- Verify `origin` targets the intended `droltr/<repository>` project with the visibility recorded in the project profile (private when none is recorded), and `main` is the reviewed baseline.
 - Check topic-branch naming, issue association, focused commits, pull-request base, draft status where appropriate, and linear-history policy.
 - Check project purpose/problem/scope/platform documentation, English-only first-party content, license requirements, `.gitignore`, templates, CODEOWNERS, dependency update policy, branch protection expectations, least-privilege Actions, secret scanning, push protection, and private vulnerability reporting.
 - Inspect CI results and required checks when accessible. Do not equate absent or skipped CI with success.

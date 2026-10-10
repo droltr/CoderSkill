@@ -1,227 +1,136 @@
 # CoderSkill
 
-CoderSkill is a cross-tool professional development skill for Codex, Claude Code, Gemini CLI, and other tools that support the Agent Skills format.
+**One set of reviewed, evidence-first engineering rules for AI coding agents, with hooks that enforce
+the critical ones.** CoderSkill works with Claude Code, Codex and Gemini CLI.
 
-## Purpose
+[![validate](https://github.com/droltr/CoderSkill/actions/workflows/validate.yml/badge.svg)](https://github.com/droltr/CoderSkill/actions/workflows/validate.yml)
+[![CodeQL](https://github.com/droltr/CoderSkill/actions/workflows/codeql.yml/badge.svg)](https://github.com/droltr/CoderSkill/actions/workflows/codeql.yml)
+[![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
-AI coding tools use different instruction files, discovery paths, permission systems, and automation mechanisms. CoderSkill provides one maintainable policy source for consistent local-first development across those tools.
+## What it does
 
-It is designed to solve four recurring problems:
+- **Makes agents verify before they claim.** Every statement is either backed by a source or a
+  command output, or labelled unverified. A negative control comes before any positive result.
+- **Runs a complete, professional workflow.** Research, clarify, plan, implement, verify, test,
+  record, pull request, carried through without "should I continue?" stops.
+- **Keeps `main` safe.** Work happens on issue-linked topic branches with signed commits; the agent
+  opens the pull request and you merge. Hooks deny merges and pushes to `main` in any spelling.
+- **Protects secrets, personal data and hardware.** Private records stay in a local `.private/`
+  folder, commits with secrets are blocked, and hardware writes need fresh approval.
+- **Keeps every agent on the same reviewed rules.** Agents install updates only from the signed
+  `main`, are told when a new version arrives, and cannot edit their installed copies.
 
-- Inconsistent engineering behavior between AI coding tools.
-- Unsafe handling of credentials, personal data, diagnostics, and device identifiers.
-- Untracked or poorly reviewed Git and GitHub changes.
-- Environment, dependency, synchronization, and validation steps that are easy to skip.
+## Why
 
-## Scope
+AI agents are fast, but left alone they report unverified results as facts, push or merge their own
+work, leak private data into public repositories, and behave differently in each tool. CoderSkill
+turns the lessons from those failures into one maintained policy and puts the critical parts where an
+agent cannot skip them: in hooks that the tool and git run themselves.
 
-The repository contains the canonical `professional-coding` skill, six focused skills (`verified-agent-rules`, `systematic-debugging`, `project-bootstrap`, `security-audit`, `github-readiness`, `code-quality-review`), generated adapters for each supported tool, agent and git hooks, and validation scripts. The skills cover:
-
-- Environment readiness and safe software-installation planning.
-- Local repository discovery and GitHub synchronization audits.
-- Evidence-based programming-language and toolchain selection.
-- English-only repository artifacts; the agent talks to the user in the operating system's language, which the session-start hook reads from the locale.
-- Continuous execution: agents carry requested work through and stop only for a closed list of reasons.
-- Issue, branch, commit, and pull-request governance.
-- Secret, personal-data, and stable-identifier protection.
-- External dependency provenance and private archival mirrors.
-- Conditional hardware-safety controls for device-specific projects.
-
-## Current status
-
-The hardened implementation is available on `main`. It includes read-only environment and preflight checks, adapter drift validation, passive security auditing, dependency metadata and SPDX release manifests, checksum verification, identity-gated GitHub flow operations, approval-gated bootstrap operations, governance templates, least-privilege CI, and CodeQL scanning. Remote mutations remain fail-closed and require explicit authorization; prompt instructions alone are never a security boundary.
-
-See [PLAN.md](PLAN.md) for the architecture, delivery phases, and validation strategy. The canonical skill is [skills/professional-coding/SKILL.md](skills/professional-coding/SKILL.md).
-See [RELEASE_NOTES.md](RELEASE_NOTES.md) for versioned changes and durable workflow/security decisions.
-
-## Execution status
-
-The assistant uses a visible status marker at the start of every progress or final message:
-
-```text
-[STATUS: IN_PROGRESS]
-[STATUS: WAITING_FOR_USER]
-[STATUS: BLOCKED]
-[STATUS: COMPLETE]
-[STATUS: FAILED]
-```
-
-`IN_PROGRESS` means work is continuing. `WAITING_FOR_USER` names the exact answer or approval required. `BLOCKED` is reserved for a verified blocker after safe alternatives were checked. `COMPLETE` is used only after the requested scope and validation are finished.
-
-For an authorized in-scope workflow, the assistant continues through routine implementation phases without pausing for unnecessary confirmation. It pauses only for material scope changes, destructive or irreversible actions, credentials, physical hardware writes, security-sensitive external mutations, or decisions that cannot be inferred safely.
-
-## Installation
-
-Clone CoderSkill once outside product repositories and install its adapters for the terminal tools you use:
+## Quick start
 
 ```bash
 git clone https://github.com/droltr/CoderSkill.git
 cd CoderSkill
-scripts/coderskill install                      # installed AI CLIs only; --agents claude,codex,gemini to choose
-scripts/coderskill install --update             # replaces unchanged copies, stops on local changes
-scripts/coderskill install --update --force     # backs up locally changed skills, then replaces them
+scripts/coderskill install                  # skills for the installed agent CLIs (or --agents claude,codex,gemini)
+scripts/install-hooks claude codex git      # agent hooks and global git hooks
 ```
 
-The installer always installs the signed `origin/main` of this clone, never the working tree:
-
-1. It fetches `main` and checks that every new commit since the installed one carries a trusted signature: GitHub's web-flow key for squash merges made on github.com (fingerprint pinned, kept in `~/.config/coderskill/trust/`), or an SSH key in your git `gpg.ssh.allowedSignersFile`. A commit without one stops the install. A "Rebase and merge" on GitHub produces unsigned commits, so merge pull requests with squash.
-2. It exports that commit with `git archive`, swaps each skill folder in one step under a lock, and makes the installed files read-only.
-3. It records the skill digests and the source commit in `.coderskill-installed.json`, so an update never silently overwrites a skill you edited. Backups go to `~/.local/share/coderskill/backups/`, outside the skill folders.
-4. It refreshes the `coderskill` command (a copy under `~/.local/share/coderskill`) and the hook runtime of the hooks that are already installed.
-
-`scripts/coderskill install --worktree` installs the working tree instead. It is for the owner while developing CoderSkill; the agent hook denies it to agents. The installer writes only to the user skill directories, the CoderSkill runtime folders and the user command directory; it does not copy CoderSkill into a target project.
-
-### Updates
-
-Every session start checks `origin/main` (one fetch at most every 10 minutes, shared by all sessions). When `main` is newer and trusted, the agent is told to run `coderskill install --update --agents <agent>` for itself and to tell you what changed; untrusted commits are reported and not installed. During a session, the prompt hook reports an important update (changes to hooks, installer, or skill rules) once, and reports when another session installed new skills for this agent. Claude Code reloads changed `SKILL.md` files in the running session (code.claude.com/docs/en/skills.md); whether to restart is your decision. A `git pull` of `main` in this clone refreshes the state through the global `post-merge` hook.
-
-### Change requests
-
-Agents do not edit the installed copies: the hooks deny writes to the skill folders that CoderSkill installed and to its runtime folders. Other skills, including the agent's own, stay writable. When a project shows that a CoderSkill rule needs to change, the agent records it:
+Then start an agent in any project. The hooks load the rules at session start. To run the whole
+workflow on a project:
 
 ```bash
-coderskill request "Short title" --details "What should change and why, without private project data"
+cd ~/path/to/project
+coderskill start execute order 66 --agent claude --run
 ```
 
-The request lands in this clone's local `.private/change-requests/`, is listed at the next CoderSkill session start, and becomes an issue after you review it. After the change is merged, agents receive it through the update check.
+Requirements: Linux, Python 3.12+, Git and GnuPG; optional GitHub CLI. Full guide:
+[installation and updates](docs/installation.md).
 
-## Agent hooks
+## How it works
 
-`hooks/coderskill_hook.py` loads the CoderSkill rules at the start of every session and
-subagent and enforces the mandatory rules. It uses only the Python standard library.
+```mermaid
+flowchart LR
+    S["skills/<br/>reviewed rules"] -->|signed main,<br/>coderskill install| I["installed skills<br/>(read-only)"]
+    I --> A["Claude Code · Codex · Gemini CLI"]
+    H["hooks"] -->|session start · prompts ·<br/>tool calls · stop| A
+    H -->|pre-commit · pre-push| G["git"]
+    A -->|topic branch, signed commits,<br/>pull request| GH["GitHub"]
+    GH -->|you review and merge| S
+```
 
-| Hook | Effect |
+1. **Skills** hold the rules. `professional-coding` runs the workflow and loads
+   `verified-agent-rules` plus only the focused skills a task needs.
+2. **Adapters** (`.claude/`, `.agents/`, `.gemini/`) are generated from `skills/` so each tool finds
+   the same content in its own place.
+3. **Hooks** inject the rules, the language and the project state at session start, log requests,
+   allow, ask or deny risky tool calls, and send back unlabelled claims. Git hooks block secrets,
+   private files and pushes to `main` for everyone.
+4. **The update channel** installs only signed commits from `main` and tells running agents when a
+   new version is available.
+
+Details: [overview and architecture](docs/overview.md).
+
+## Skills
+
+| Skill | Use it for |
 |---|---|
-| `SessionStart`, `SubagentStart` | Inject `hooks/session-context.md`, the local and GitHub sync state, open requests, and research notes from `.private/` |
-| `SessionStart` (update check) | Report a newer signed `main` and tell the agent to install it; report untrusted commits |
-| `UserPromptSubmit` | Log each request to `.agent-sessions/requests.jsonl`; reinforce "stop"; report important updates and skills updated by another session, once each |
-| `PreToolUse` (Claude Code) | Deny edits to installed CoderSkill skills and runtime files and `install --worktree`; deny PR merges, pushes to `main` (following `cd`, `git -C`, `HEAD`), `--no-verify`, secrets in the commit, and non-GitHub-compatible new names; ask before hardware writes, also inside `sudo`, `env`, `sh -c` |
-| `Stop` | Block once on unlabelled hedging; remind when records were not updated |
-| Git `pre-commit` (global) | Reject `.private/`, `.agent-sessions/`, local note files, and secrets in any commit; then run the repository's own hook |
-| Git `pre-push` (global) | Refuse updates to `main` or `master` on any remote, whatever the command spelling; the owner can allow one deliberate push with `CODERSKILL_ALLOW_PROTECTED_PUSH=1`; then run the repository's own hook |
-| Git `post-merge` (global) | In the CoderSkill clone on `main`, refresh the update state; then run the repository's own hook |
-| `SessionEnd` | Copy the transcript to `.agent-sessions/transcripts/` |
+| [professional-coding](docs/skills/professional-coding.md) | Any code, configuration or repository change, end to end |
+| [verified-agent-rules](docs/skills/verified-agent-rules.md) | Evidence rules for every task (always loaded) |
+| [systematic-debugging](docs/skills/systematic-debugging.md) | Defects: reproduce, isolate, explain, fix, record |
+| [project-bootstrap](docs/skills/project-bootstrap.md) | Starting or resuming a project; environment readiness (read-only) |
+| [security-audit](docs/skills/security-audit.md) | Security, privacy and secret review (read-only) |
+| [github-readiness](docs/skills/github-readiness.md) | Git and GitHub readiness, governance, CI (read-only) |
+| [code-quality-review](docs/skills/code-quality-review.md) | Correctness, maintainability, tests (read-only) |
 
-`.private/` (requests, research, plans, session records) and `.agent-sessions/` (prompt log, transcripts) stay local and are never pushed. The hooks write to `.agent-sessions/` only when it is a real, git-ignored, untracked folder; a cloned repository cannot redirect these writes with symlinks or ignore rules. Install for the agents you use; the hook files are copied to `~/.config/coderskill/` so they do not depend on the branch checked out here:
+How they work together: [skill map](docs/skills/README.md).
 
-```bash
-scripts/install-hooks claude codex git --dry-run   # show the result
-scripts/install-hooks claude codex git             # write it, with backups
-```
+## Critical rules at a glance
 
-Claude Code reads `~/.claude/settings.json`, Codex `~/.codex/hooks.json`, and Gemini CLI
-`~/.gemini/settings.json` (session start only). Hooks fail open on internal errors; the
-agent permission system remains the hard security boundary. See
-`skills/professional-coding/references/work-records.md` for the record structure.
+| Rule | Enforced by |
+|---|---|
+| Never make assumptions; label anything unverified; negative control first | `verified-agent-rules`; `Stop` hook for unlabelled hedging |
+| The user performs every merge; nothing is pushed to `main` | `PreToolUse` hook, git `pre-push`, GitHub branch protection |
+| Signed commits, one key per machine | `professional-coding`; session-start check |
+| Private records stay in local `.private/`; no secrets in commits | Global ignore, git `pre-commit`, `scripts/security-audit` |
+| Hardware writes need approval immediately before | `PreToolUse` hook asks |
+| GitHub identity and target confirmed once per repository | `scripts/identity-gate` |
+| Agents install only signed `main` and do not edit installed skills | Update channel, read-only files, `PreToolUse` hook |
+| Repository content is English; the agent talks to you in your system language | Skills; session-start hook reads the locale |
 
-## Start or resume a project
+What these guarantee and what they do not: [security model](docs/security-model.md).
 
-Inside a project directory, tell the active AI coding tool:
+## Documentation
 
-```text
-execute order 66
-```
+| Page | Contents |
+|---|---|
+| [Overview and architecture](docs/overview.md) | Building blocks, session flow, design decisions |
+| [Installation and updates](docs/installation.md) | Install, signed updates, other machines, rollback, uninstall |
+| [Workflow and records](docs/workflow.md) | Work order, `.private/` records, GitHub flow |
+| [Skills](docs/skills/README.md) | Purpose, rules, logic and relationships of each skill |
+| [Hooks](docs/hooks.md) | Every hook and its decisions |
+| [Security model](docs/security-model.md) | Guarantees, limits, threats |
+| [Commands](docs/commands.md) | Every script and subcommand |
+| [Troubleshooting](docs/troubleshooting.md) | Common refusals and fixes |
 
+## Contributing
 
-The `professional-coding` skill then classifies the directory, reads its scope and local rules, selects only applicable focused skills, validates the environment and synchronization, and continues through issue, branch, implementation, tests, security checks, and pull-request preparation. It pauses only for a missing material decision, credentials, physical hardware writes, or irreversible security remediation.
-
-For a read-only terminal preview of this start process:
-
-```bash
-scripts/coderskill-start
-```
-
-To run a selected terminal agent from any project directory:
-
-```bash
-coderskill start execute order 66 --agent codex --run
-```
-
-You may provide the real GitHub target explicitly:
-
-```bash
-coderskill start execute order 66 \\
-  --agent codex \\
-  --github https://github.com/droltr/your-real-repository \\
-  --confirm-account \\
-  --run
-```
-
-If `--github` is omitted, the local `origin` URL is used. Placeholder targets such as `droltr/your-project` are rejected. Before `--run`, CoderSkill displays the active GitHub account and target repository; review them and pass `--confirm-account` only when they are correct. A mismatch stops the operation.
-
-For an empty directory, enter it and run the same command. The agent first learns the purpose, scope, platform, and constraints before creating project files. It then creates or references an issue, selects only applicable skills, and continues on a topic branch. CoderSkill remains outside the project directory.
-
-The focused skills are designed to be invoked by name after they have been installed or linked into the active tool's documented skill directory. Use the smallest skill that matches the request:
-
-```text
-Evidence-first rules:        verified-agent-rules
-Debugging:                  systematic-debugging
-Security and privacy:       security-audit
-GitHub compatibility:       github-readiness
-Code quality:               code-quality-review
-Project startup/readiness:  project-bootstrap
-End-to-end implementation:  professional-coding
-```
-
-Example requests:
-
-```text
-Use verified-agent-rules for this hardware-facing change. Verify the exact device, sources,
-versions, write path, readback, rollback, and runtime result. Do not make assumptions.
-
-Use security-audit to inspect this repository for secrets, personal-data leaks, and exploitable vulnerabilities. Do not modify files.
-
-Use github-readiness to check whether this repository is ready for a droltr GitHub pull request. Do not push or change remote settings.
-
-Use code-quality-review to assess this diff for correctness, maintainability, tests, and professional English. Do not implement fixes.
-
-Use project-bootstrap to locate the local project, check synchronization, audit required tools, and recommend an implementation language.
-
-Use professional-coding to implement issue #123 locally, validate the changes, and prepare a draft pull request when explicitly authorized.
-```
-
-Tool invocation examples:
-
-- Claude Code: invoke a user-facing skill with `/security-audit`, `/github-readiness`, `/code-quality-review`, `/project-bootstrap`, or `/professional-coding` after installing the corresponding folders under `.claude/skills/<name>/`.
-- Gemini CLI: install or link the skill using the CLI's Agent Skills workflow, then invoke the matching skill name. Workspace installation uses `.gemini/skills/<name>/` or the supported `.agents/skills/<name>/` alias.
-- Codex and other Agent Skills tools: install or link the matching `skills/<name>/` directory using that tool's documented skill directory, then invoke the skill by its name (for example, `security-audit`).
-
-For a check-only request, explicitly say “do not modify files, commit, push, or change remote state.” Focused skills are read-only by design. The `professional-coding` skill is intended only when implementation or a multi-phase workflow is requested.
-
-## Current command availability
-
-The following deterministic commands are available:
-
-```bash
-scripts/doctor
-scripts/bootstrap plan
-scripts/build-adapters --check
-scripts/github-flow plan --issue 123 --kind feature
-scripts/github-flow apply --issue 123 --kind feature
-scripts/release-manifest --output /tmp/coderskill-release.json
-scripts/release-verify /tmp/coderskill-release.json
-scripts/security-audit --format json --root .        # publishable files; add --all-files for ignored ones
-scripts/preflight --scope branch --base main          # staged | branch | history
-scripts/github-settings-check --expect-visibility public
-scripts/identity-gate check                            # recorded GitHub identity and target
-scripts/validate-project-profile .coderskill/project.yml.example
-scripts/validate-lesson knowledge/lesson.example.yml
-```
-
-The `apply` subcommands of `bootstrap` and `github-flow` only check for explicit, target-bound authorization; they do not install anything or change GitHub. The test suite can be run with:
-
-```bash
-python3 -m unittest discover -s tests -v
-```
+Changes go through an issue, a topic branch and a pull request; see [CONTRIBUTING.md](CONTRIBUTING.md).
+Report vulnerabilities privately as described in [SECURITY.md](SECURITY.md). Changes are listed in
+[RELEASE_NOTES.md](RELEASE_NOTES.md).
 
 ## Acknowledgements
 
 Some workflow ideas were adapted, in CoderSkill's own words and without copying text or code, from:
 
-- [obra/superpowers](https://github.com/obra/superpowers) (MIT): continuous plan execution with a closed list of stop reasons, the completion gate, systematic debugging.
-- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT): requirement clarification before planning, bug diagnosis.
-- [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) (no license; principles restated, no text used): simplicity first, surgical changes, success criteria per task.
+- [obra/superpowers](https://github.com/obra/superpowers) (MIT): continuous plan execution with a
+  closed list of stop reasons, the completion gate, systematic debugging.
+- [mattpocock/skills](https://github.com/mattpocock/skills) (MIT): requirement clarification before
+  planning, bug diagnosis.
+- [multica-ai/andrej-karpathy-skills](https://github.com/multica-ai/andrej-karpathy-skills) (no
+  license; principles restated, no text used): simplicity first, surgical changes, success criteria
+  per task.
 
-## Privacy
+## License
 
-This repository must not contain credentials, real usernames, machine-specific paths, hostnames, network addresses, device serials, customer data, or unredacted diagnostics. Use neutral placeholders and synthetic test data.
+[MIT](LICENSE).
