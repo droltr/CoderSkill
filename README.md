@@ -179,13 +179,15 @@ scripts/github-flow plan --issue 123 --kind feature
 scripts/github-flow apply --issue 123 --kind feature
 scripts/release-manifest --output /tmp/coderskill-release.json
 scripts/release-verify /tmp/coderskill-release.json
-scripts/security-audit --format json --root .
-scripts/preflight --scope branch
+scripts/security-audit --format json --root .        # publishable files; add --all-files for ignored ones
+scripts/preflight --scope branch --base main          # staged | branch | history
+scripts/github-settings-check --expect-visibility public
+scripts/identity-gate check                            # recorded GitHub identity and target
 scripts/validate-project-profile .coderskill/project.yml.example
 scripts/validate-lesson knowledge/lesson.example.yml
 ```
 
-Mutation subcommands for `bootstrap` and `github-flow` are available only with explicit, target-bound authorization and fail closed otherwise. The test suite can be run with:
+The `apply` subcommands of `bootstrap` and `github-flow` only check for explicit, target-bound authorization; they do not install anything or change GitHub. The test suite can be run with:
 
 ```bash
 python3 -m unittest discover -s tests -v

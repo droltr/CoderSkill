@@ -16,7 +16,11 @@ RULES = (
     ("private-key", "critical", re.compile(r"-----BEGIN (?:RSA |EC |OPENSSH )?PRIVATE KEY-----")),
     ("mac-address", "high", re.compile(r"(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}")),
     ("ipv4-address", "medium", re.compile(r"(?<![0-9])(?:[0-9]{1,3}\.){3}[0-9]{1,3}(?![0-9])")),
+    ("email-address", "medium", re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}")),
+    ("home-path", "medium", re.compile(r"(?:/var/home/|/home/|/Users/|[A-Za-z]:\\{1,2}Users\\{1,2})(?!user\b|username\b|runner\b|<)[A-Za-z][A-Za-z0-9._-]*")),
 )
+# Addresses that identify no person: placeholders, documentation domains, service no-reply senders.
+BENIGN_EMAIL = re.compile(r"^git@|noreply|no-reply|@example\.(?:com|org|net|invalid)$|\.invalid$|\.test$|\.local$|@localhost|@\d+x\.", re.IGNORECASE)
 IGNORED_DIRS = {".git", "node_modules", ".venv", "__pycache__", ".pytest_cache"}
 
 
@@ -24,17 +28,34 @@ def fingerprint(value: str) -> str:
     return hashlib.sha256(value.encode()).hexdigest()[:12]
 
 
-def files(root: Path, selected: Path | None) -> list[Path]:
+def publishable(root: Path) -> set[Path] | None:
+    """Files that git would publish (tracked or not ignored), or None outside a work tree."""
+    result = subprocess.run(
+        ["git", "-C", str(root), "ls-files", "-z", "--cached", "--others", "--exclude-standard"],
+        capture_output=True, check=False,
+    )
+    if result.returncode != 0:
+        return None
+    return {root / name for name in result.stdout.decode("utf-8", "replace").split("\0") if name}
+
+
+def files(root: Path, selected: Path | None, all_files: bool = False) -> list[Path]:
     base = (root / selected).resolve() if selected else root
     if not base.is_relative_to(root):
         raise ValueError("scan path must remain inside repository root")
     candidates = [base] if base.is_file() else base.rglob("*")
-    return [path for path in candidates if path.is_file() and not any(part in IGNORED_DIRS for part in path.relative_to(root).parts)]
+    allowed = None if all_files else publishable(root)
+    return [
+        path for path in candidates
+        if path.is_file()
+        and not any(part in IGNORED_DIRS for part in path.relative_to(root).parts)
+        and (allowed is None or path in allowed)
+    ]
 
 
-def audit(root: Path, selected: Path | None) -> list[dict[str, object]]:
+def audit(root: Path, selected: Path | None, all_files: bool = False) -> list[dict[str, object]]:
     findings: list[dict[str, object]] = []
-    for path in files(root, selected):
+    for path in files(root, selected, all_files):
         try:
             data = path.read_bytes()
             text = data.decode("utf-8")
@@ -42,6 +63,8 @@ def audit(root: Path, selected: Path | None) -> list[dict[str, object]]:
             continue
         for category, severity, rule in RULES:
             for match in rule.finditer(text):
+                if category == "email-address" and BENIGN_EMAIL.search(match.group(0)):
+                    continue
                 line = text.count("\n", 0, match.start()) + 1
                 findings.append({
                     "category": category,
@@ -60,10 +83,11 @@ def main() -> int:
     parser.add_argument("--root", type=Path, default=Path.cwd())
     parser.add_argument("--path", type=Path, help="optional file or directory below root")
     parser.add_argument("--format", choices=("json", "sarif"), default="json")
+    parser.add_argument("--all-files", action="store_true", help="also scan git-ignored local files")
     args = parser.parse_args()
     root = args.root.resolve()
     try:
-        findings = audit(root, args.path)
+        findings = audit(root, args.path, args.all_files)
     except ValueError as error:
         parser.error(str(error))
     if args.format == "sarif":

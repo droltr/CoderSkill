@@ -49,16 +49,43 @@ def expected_files(root: Path, skills: list[Path]) -> dict[str, bytes]:
     return files
 
 
+def stale_files(root: Path, files: dict[str, bytes]) -> list[str]:
+    """Files under the adapter targets that the canonical skills no longer produce."""
+    stale = []
+    for target in TARGETS:
+        base = root / target
+        if base.is_dir():
+            for path in sorted(base.rglob("*")):
+                relative = path.relative_to(root).as_posix()
+                if path.is_file() and relative not in files:
+                    stale.append(relative)
+    return stale
+
+
+def manifest_drift(root: Path, skills: list[Path]) -> list[str]:
+    path = root / "adapters" / "manifest.json"
+    try:
+        recorded = json.loads(path.read_text(encoding="utf-8")).get("skills", {})
+    except (OSError, json.JSONDecodeError):
+        return ["adapters/manifest.json (missing or invalid)"]
+    expected = {skill.name: digest_tree(skill) for skill in skills}
+    return [f"adapters/manifest.json ({name})" for name in sorted(set(expected) | set(recorded))
+            if expected.get(name) != recorded.get(name)]
+
+
 def check(root: Path, files: dict[str, bytes]) -> list[str]:
     mismatches: list[str] = []
     for relative, content in files.items():
         destination = root / relative
         if not destination.is_file() or destination.read_bytes() != content:
             mismatches.append(relative)
+    mismatches.extend(f"{item} (stale)" for item in stale_files(root, files))
     return mismatches
 
 
 def write(root: Path, files: dict[str, bytes]) -> None:
+    for relative in stale_files(root, files):
+        (root / relative).unlink()
     for relative, content in files.items():
         destination = root / relative
         destination.parent.mkdir(parents=True, exist_ok=True)
@@ -88,7 +115,7 @@ def main() -> int:
     try:
         skills = canonical_skills(root)
         files = expected_files(root, skills)
-        mismatches = check(root, files)
+        mismatches = check(root, files) + manifest_drift(root, skills)
         if args.check:
             if mismatches:
                 print("adapter drift detected:")

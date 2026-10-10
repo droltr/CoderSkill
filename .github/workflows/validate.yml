@@ -11,14 +11,16 @@ jobs:
   checks:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v7
-      - uses: actions/setup-python@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7
         with:
           python-version: '3.x'
       - name: Install validation dependency
-        run: python -m pip install --disable-pip-version-check PyYAML
+        run: python -m pip install --disable-pip-version-check PyYAML==6.0.3
       - name: Validate shell scripts
-        run: bash -n scripts/build-adapters scripts/doctor scripts/security-audit scripts/validate-*
+        run: |
+          for wrapper in $(git ls-files 'scripts/*' ':!scripts/*.py'); do bash -n "$wrapper"; done
+          python -m py_compile scripts/*.py hooks/*.py
       - name: Validate adapters
         run: scripts/build-adapters --check
       - name: Validate project profile and lesson examples
@@ -27,5 +29,7 @@ jobs:
           scripts/validate-lesson knowledge/lesson.example.yml
       - name: Run unit tests
         run: python -m unittest discover -s tests -v
+      - name: Audit publishable files for secrets and identifiers
+        run: scripts/security-audit
       - name: Check patch formatting
         run: git diff --check
