@@ -18,3 +18,6 @@ __pycache__/
 
 # Local agent session data (also ignored by its own .gitignore)
 .agent-sessions/
+
+# Local-only private work files (research, plans, requests, sessions, notes)
+.private/
