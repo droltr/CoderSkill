@@ -23,6 +23,7 @@ rules fail open. The permission system, not this script, is the hard security bo
 from __future__ import annotations
 
 import argparse
+import fnmatch
 import hashlib
 import json
 import re
@@ -279,8 +280,10 @@ def check_git(args: list[str], cwd: str) -> tuple[str, str] | None:
         refspecs = positional[1:]
         for ref in refspecs:
             target = ref.split(":")[-1].removeprefix("+").removeprefix("refs/heads/")
-            if target in PROTECTED_BRANCHES:
-                return "deny", f"CoderSkill: never push to {target}. Push a topic branch and open a pull request; the user merges."
+            # A wildcard refspec such as refs/heads/*:refs/heads/* also writes main.
+            hit = [b for b in PROTECTED_BRANCHES if fnmatch.fnmatchcase(b, target)]
+            if hit:
+                return "deny", f"CoderSkill: never push to {hit[0]}. Push a topic branch and open a pull request; the user merges."
         if not refspecs and current_branch(cwd) in PROTECTED_BRANCHES:
             return "deny", "CoderSkill: the current branch is protected. Create a topic branch and push that."
     if sub == "merge" and current_branch(cwd) in PROTECTED_BRANCHES:

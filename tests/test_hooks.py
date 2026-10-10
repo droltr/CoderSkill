@@ -126,6 +126,16 @@ class GitRuleTests(RepoTestCase):
         self.assertEqual(self.bash("git push origin HEAD:refs/heads/main"), "deny")
         self.assertEqual(self.bash("git push --all"), "deny")
 
+    def test_wildcard_push_covering_main_is_denied(self):
+        git(self.repo, "switch", "-q", "-c", "feat/x")
+        self.assertEqual(self.bash("git push origin 'refs/heads/*:refs/heads/*'"), "deny")
+        self.assertEqual(self.bash("git push origin '+refs/heads/m*:refs/heads/m*'"), "deny")
+
+    def test_wildcard_push_outside_main_is_allowed(self):
+        # Negative control: a pattern that cannot match main or master.
+        git(self.repo, "switch", "-q", "-c", "feat/x")
+        self.assertIsNone(self.bash("git push origin 'refs/heads/feat/*:refs/heads/feat/*'"))
+
     def test_push_without_refspec_on_main_is_denied(self):
         self.assertEqual(self.bash("git push"), "deny")
 
