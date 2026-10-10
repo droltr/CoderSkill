@@ -73,13 +73,28 @@ class SessionStartTests(RepoTestCase):
         git(self.repo, "remote", "add", "origin", str(remote))
         git(self.repo, "push", "-q", "-u", "origin", "main")
         context = run_hook("session-start", {"cwd": str(self.repo)})["hookSpecificOutput"]["additionalContext"]
-        self.assertNotIn("Local and GitHub state", context)  # negative control: in sync
+        # Negative control: in sync, so no branch or commit lines.
+        for text in ("Unpushed commits", "without a remote copy", "uncommitted", "No remote configured"):
+            self.assertNotIn(text, context)
         (self.repo / "README.md").write_text("changed\n")
         git(self.repo, "commit", "-q", "-am", "local only")
         git(self.repo, "switch", "-q", "-c", "feat/local")
         context = run_hook("session-start", {"cwd": str(self.repo)})["hookSpecificOutput"]["additionalContext"]
         self.assertIn("Unpushed commits on: main", context)
         self.assertIn("Branches without a remote copy: feat/local", context)
+
+    def test_missing_signing_is_reported(self):
+        context = run_hook("session-start", {"cwd": str(self.repo)})["hookSpecificOutput"]["additionalContext"]
+        self.assertIn("Commit signing is not configured", context)
+
+    def test_configured_signing_is_not_reported(self):
+        # Negative control: an existing SSH signing key and commit.gpgsign=true.
+        key = Path(self.tmp.name) / "signing.pub"
+        key.write_text("ssh-ed25519 AAAA test\n")
+        for name, value in (("commit.gpgsign", "true"), ("gpg.format", "ssh"), ("user.signingkey", str(key))):
+            git(self.repo, "config", name, value)
+        context = run_hook("session-start", {"cwd": str(self.repo)})["hookSpecificOutput"]["additionalContext"]
+        self.assertNotIn("Commit signing is not configured", context)
 
     def test_outside_repository_has_rules_only(self):
         output = run_hook("session-start", {"cwd": self.tmp.name})

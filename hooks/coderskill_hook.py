@@ -151,6 +151,16 @@ def git_out(root: Path, *args: str) -> str:
     return result.stdout.strip() if result.returncode == 0 else ""
 
 
+def signing_configured(root: Path) -> bool:
+    """True when git will sign commits here with a key file that exists."""
+    if git_out(root, "config", "--get", "commit.gpgsign").lower() != "true":
+        return False
+    key = git_out(root, "config", "--get", "user.signingkey")
+    if git_out(root, "config", "--get", "gpg.format") == "ssh":
+        return bool(key) and Path(key).expanduser().is_file()
+    return bool(key)
+
+
 def sync_report(root: Path) -> list[str]:
     """Describe how the local repository differs from its remote, as of the last fetch."""
     lines = []
@@ -176,6 +186,9 @@ def sync_report(root: Path) -> list[str]:
         lines.append(f"- Branches without a remote copy: {', '.join(no_upstream)}.")
     if not git_out(root, "remote"):
         lines.append("- No remote configured; GitHub does not track this project yet.")
+    if not signing_configured(root):
+        lines.append("- Commit signing is not configured on this machine; set it up before committing "
+                     "(professional-coding, environment-bootstrap: Commit signing).")
     fetch_head = root / ".git" / "FETCH_HEAD"
     if lines and fetch_head.is_file():
         age_hours = (time.time() - fetch_head.stat().st_mtime) / 3600

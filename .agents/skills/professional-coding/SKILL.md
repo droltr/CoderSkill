@@ -116,6 +116,10 @@ At every resume, before push or pull-request creation, re-check the active accou
 - Do not rewrite published history unless removing sensitive information or responding to an equivalent security incident.
 - When history rewriting is necessary, preserve commit topology, messages, and unrelated content.
 - Use `--force-with-lease` instead of unrestricted force-push when replacing rewritten history.
+- Sign every commit and tag with a key registered to the owner's GitHub account; SSH signing is preferred. Each machine has its own signing key: never copy a private key between machines, into a repository, or into a synchronized folder.
+- Before the first commit on a machine, confirm that signing works (`commit.gpgsign`, `gpg.format`, `user.signingkey`, and a `git verify-commit` test). If it is not configured, stop and set it up with the user's approval as described in [references/environment-bootstrap.md](references/environment-bootstrap.md); do not fall back to unsigned commits silently.
+- Before requesting review, confirm that the pull-request commits are verified on GitHub (`commit.verification.verified` in the commits API). Report unverified commits instead of claiming the branch is ready.
+- Where the plan supports it, require signed commits on the protected default branch; changing this setting needs the owner's approval.
 
 ## GitHub Compatibility
 

@@ -90,6 +90,29 @@ Package-manager choice must follow the detected platform and existing project co
 - For external source code, keep `origin` for the private `droltr` project and use clearly named remotes such as `upstream` or `mirror`; never silently repoint an existing remote.
 - Check `.gitignore` and local excludes before creating machine-local configuration, diagnostics, build caches, or authentication artifacts.
 
+### Commit signing
+
+Commits and tags are signed on every machine (see `professional-coding`). Change signing
+configuration only with the user's approval.
+
+1. Inspect: `git config --get commit.gpgsign`, `gpg.format`, `user.signingkey`, and whether
+   the referenced key file exists. Do not print private key material.
+2. If missing, propose one signing key per machine, for example:
+   `ssh-keygen -t ed25519 -C '<account>-commit-signing-<machine-role>' -f ~/.ssh/id_ed25519_signing`.
+   Ask whether the key gets a passphrase: a passphrase protects a stolen key file but needs a
+   running `ssh-agent` for unattended agent commits. Do not put host names or serial numbers
+   in the key comment.
+3. Configure globally: `gpg.format ssh`, `user.signingkey <public key path>`,
+   `commit.gpgsign true`, `tag.gpgsign true`, and `gpg.ssh.allowedSignersFile` with a line
+   `<commit email> namespaces="git" <public key>`.
+4. Validate locally: a signed test commit must pass `git verify-commit`, and a commit made with
+   `-c commit.gpgsign=false` must fail it (negative control).
+5. Register the public key on GitHub as a signing key (`gh ssh-key add <pub> --type signing`,
+   which needs the `admin:ssh_signing_key` scope that only the user can grant), then confirm
+   that a pushed commit reports `verification.verified: true`.
+6. Never copy the private key to another machine or a synchronized folder; each machine gets
+   its own key, and a lost machine's key is removed from GitHub.
+
 ## 6. Configure GitHub safely
 
 - Verify the active `gh` account is exactly the intended account before mutation.
@@ -108,6 +131,7 @@ Begin implementation only when:
 - Required tool versions are ready.
 - Project dependencies can be restored reproducibly.
 - Git identity and remotes are valid for the intended local operation.
+- Commit signing is configured and a test commit verifies, or the user has explicitly deferred it.
 - GitHub authentication and access are valid when a GitHub action is requested.
 - Required security scanners are available, or the user has explicitly chosen a documented limited fallback that does not weaken a mandatory gate.
 - No secret, credential, personal-data, or unsafe hardware prerequisite remains unresolved.
