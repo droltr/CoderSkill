@@ -4,6 +4,13 @@ This file records user-visible changes and durable workflow or security decision
 
 ## Unreleased
 
+### Signed skill updates
+
+- `coderskill install` installs only the signed `origin/main` of the CoderSkill clone (GitHub web-flow key pinned, or the owner's SSH signers); every new commit must be signed. `--worktree` keeps the old behaviour for the owner.
+- Installed skills are read-only, swapped in one step under a lock, and backed up outside the skill folders; skills removed from CoderSkill are uninstalled unless changed locally.
+- Session start and prompt hooks report waiting and installed updates; the global `post-merge` hook refreshes the state in the CoderSkill clone.
+- Agents cannot edit installed CoderSkill files; `coderskill request` records a change request in the clone's local `.private/change-requests/`.
+
 ### Agent hooks, records and policy cleanup
 
 - Load the CoderSkill rules at every session and subagent start (Claude Code, Codex, Gemini CLI) and enforce mandatory rules through agent hooks and global git `pre-commit` and `pre-push` hooks.

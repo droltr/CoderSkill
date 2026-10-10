@@ -62,13 +62,28 @@ scripts/coderskill install --update             # replaces unchanged copies, sto
 scripts/coderskill install --update --force     # backs up locally changed skills, then replaces them
 ```
 
-The installer records what it installed in `.coderskill-installed.json` next to the skills, so an update never silently overwrites a skill you edited. The `coderskill` command runs from a copy under `~/.local/share/coderskill`, so switching branches in this clone does not change it.
+The installer always installs the signed `origin/main` of this clone, never the working tree:
 
-The installer writes only to the user skill directories and user command directory. It does not copy CoderSkill into a target project and does not overwrite existing skills unless `--update` is supplied:
+1. It fetches `main` and checks that every new commit since the installed one carries a trusted signature: GitHub's web-flow key for squash merges made on github.com (fingerprint pinned, kept in `~/.config/coderskill/trust/`), or an SSH key in your git `gpg.ssh.allowedSignersFile`. A commit without one stops the install. A "Rebase and merge" on GitHub produces unsigned commits, so merge pull requests with squash.
+2. It exports that commit with `git archive`, swaps each skill folder in one step under a lock, and makes the installed files read-only.
+3. It records the skill digests and the source commit in `.coderskill-installed.json`, so an update never silently overwrites a skill you edited. Backups go to `~/.local/share/coderskill/backups/`, outside the skill folders.
+4. It refreshes the `coderskill` command (a copy under `~/.local/share/coderskill`) and the hook runtime of the hooks that are already installed.
+
+`scripts/coderskill install --worktree` installs the working tree instead. It is for the owner while developing CoderSkill; the agent hook denies it to agents. The installer writes only to the user skill directories, the CoderSkill runtime folders and the user command directory; it does not copy CoderSkill into a target project.
+
+### Updates
+
+Every session start checks `origin/main` (one fetch at most every 10 minutes, shared by all sessions). When `main` is newer and trusted, the agent is told to run `coderskill install --update --agents <agent>` for itself and to tell you what changed; untrusted commits are reported and not installed. During a session, the prompt hook reports an important update (changes to hooks, installer, or skill rules) once, and reports when another session installed new skills for this agent. Claude Code reloads changed `SKILL.md` files in the running session (code.claude.com/docs/en/skills.md); whether to restart is your decision. A `git pull` of `main` in this clone refreshes the state through the global `post-merge` hook.
+
+### Change requests
+
+Agents do not edit the installed copies: the hooks deny writes to the skill folders that CoderSkill installed and to its runtime folders. Other skills, including the agent's own, stay writable. When a project shows that a CoderSkill rule needs to change, the agent records it:
 
 ```bash
-scripts/coderskill install --update
+coderskill request "Short title" --details "What should change and why, without private project data"
 ```
+
+The request lands in this clone's local `.private/change-requests/`, is listed at the next CoderSkill session start, and becomes an issue after you review it. After the change is merged, agents receive it through the update check.
 
 ## Agent hooks
 
@@ -78,11 +93,13 @@ subagent and enforces the mandatory rules. It uses only the Python standard libr
 | Hook | Effect |
 |---|---|
 | `SessionStart`, `SubagentStart` | Inject `hooks/session-context.md`, the local and GitHub sync state, open requests, and research notes from `.private/` |
-| `UserPromptSubmit` | Log each request to `.agent-sessions/requests.jsonl`; reinforce "stop" |
-| `PreToolUse` (Claude Code) | Deny PR merges, pushes to `main` (following `cd`, `git -C`, `HEAD`), `--no-verify`, secrets in the commit, and non-GitHub-compatible new names; ask before hardware writes, also inside `sudo`, `env`, `sh -c` |
+| `SessionStart` (update check) | Report a newer signed `main` and tell the agent to install it; report untrusted commits |
+| `UserPromptSubmit` | Log each request to `.agent-sessions/requests.jsonl`; reinforce "stop"; report important updates and skills updated by another session, once each |
+| `PreToolUse` (Claude Code) | Deny edits to installed CoderSkill skills and runtime files and `install --worktree`; deny PR merges, pushes to `main` (following `cd`, `git -C`, `HEAD`), `--no-verify`, secrets in the commit, and non-GitHub-compatible new names; ask before hardware writes, also inside `sudo`, `env`, `sh -c` |
 | `Stop` | Block once on unlabelled hedging; remind when records were not updated |
 | Git `pre-commit` (global) | Reject `.private/`, `.agent-sessions/`, local note files, and secrets in any commit; then run the repository's own hook |
 | Git `pre-push` (global) | Refuse updates to `main` or `master` on any remote, whatever the command spelling; the owner can allow one deliberate push with `CODERSKILL_ALLOW_PROTECTED_PUSH=1`; then run the repository's own hook |
+| Git `post-merge` (global) | In the CoderSkill clone on `main`, refresh the update state; then run the repository's own hook |
 | `SessionEnd` | Copy the transcript to `.agent-sessions/transcripts/` |
 
 `.private/` (requests, research, plans, session records) and `.agent-sessions/` (prompt log, transcripts) stay local and are never pushed. The hooks write to `.agent-sessions/` only when it is a real, git-ignored, untracked folder; a cloned repository cannot redirect these writes with symlinks or ignore rules. Install for the agents you use; the hook files are copied to `~/.config/coderskill/` so they do not depend on the branch checked out here:

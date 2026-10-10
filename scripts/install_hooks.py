@@ -35,6 +35,7 @@ RUNTIME_FILES = (
     "hooks/git_pre_push.py",
     "hooks/session-context.md",
     "scripts/security_audit.py",
+    "scripts/update_channel.py",
 )
 HOOK = INSTALL_DIR / "hooks" / "coderskill_hook.py"
 GIT_PRE_COMMIT = INSTALL_DIR / "hooks" / "git_pre_commit.py"
@@ -45,7 +46,7 @@ GLOBAL_IGNORES = (".private/", ".agent-sessions/", ".coderskill/local/")
 CHAINED_GIT_HOOKS = (
     "applypatch-msg", "pre-applypatch", "post-applypatch", "pre-merge-commit",
     "prepare-commit-msg", "commit-msg", "post-commit", "pre-rebase", "post-checkout",
-    "post-merge", "pre-auto-gc", "post-rewrite",
+    "pre-auto-gc", "post-rewrite",
 )
 CHAIN_SCRIPT = """#!/bin/sh
 # CoderSkill: run the repository's own hook of the same name, if present.
@@ -53,6 +54,11 @@ hook="$(git rev-parse --git-common-dir)/hooks/$(basename "$0")"
 if [ -x "$hook" ]; then exec "$hook" "$@"; fi
 exit 0
 """
+# post-merge also refreshes the CoderSkill update state when the source clone pulls main.
+POST_MERGE_SCRIPT = f"""#!/bin/sh
+# CoderSkill: refresh the update state (acts only in the CoderSkill clone on main), then chain.
+python3 -I "{INSTALL_DIR / 'scripts' / 'update_channel.py'}" post-merge >/dev/null 2>&1 || true
+""" + CHAIN_SCRIPT.split("\n", 1)[1]
 MARKER = "coderskill_hook.py"
 
 # event -> (hook argument, matcher or None, timeout in seconds)
@@ -60,7 +66,7 @@ CLAUDE_EVENTS = {
     "SessionStart": ("session-start", None, 10),
     "SubagentStart": ("subagent-start", None, 10),
     "UserPromptSubmit": ("prompt", None, 10),
-    "PreToolUse": ("pre-tool", "Bash|Write", 30),
+    "PreToolUse": ("pre-tool", "Bash|Write|Edit|MultiEdit|NotebookEdit", 30),
     "Stop": ("stop", None, 10),
     "SessionEnd": ("session-end", None, 60),
 }
@@ -107,7 +113,11 @@ def merged(settings: dict, agent: str, events: dict, timeout_unit: int) -> dict:
 def install(agent: str, dry_run: bool) -> None:
     path, events, unit = TARGETS[agent]
     settings = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+    before = json.dumps(settings, sort_keys=True)
     result = merged(settings, agent, events, unit)
+    if json.dumps(result, sort_keys=True) == before:
+        print(f"hooks up to date for {agent}: {path}")
+        return
     text = json.dumps(result, indent=2, ensure_ascii=False) + "\n"
     if dry_run:
         print(f"--- {path} (dry run)\n{text}")
@@ -156,9 +166,9 @@ def install_git(dry_run: bool, force: bool) -> int:
         path = GIT_HOOKS_DIR / name
         path.write_text(f'#!/bin/sh\nexec python3 -I "{script}" "$@"\n', encoding="utf-8")
         path.chmod(0o755)
-    for name in CHAINED_GIT_HOOKS:
+    for name, text in [*((n, CHAIN_SCRIPT) for n in CHAINED_GIT_HOOKS), ("post-merge", POST_MERGE_SCRIPT)]:
         path = GIT_HOOKS_DIR / name
-        path.write_text(CHAIN_SCRIPT, encoding="utf-8")
+        path.write_text(text, encoding="utf-8")
         path.chmod(0o755)
     subprocess.run(["git", "config", "--global", "core.hooksPath", str(GIT_HOOKS_DIR)], check=True)
     if missing:
@@ -171,14 +181,25 @@ def install_git(dry_run: bool, force: bool) -> int:
     return 0
 
 
-def copy_runtime(dry_run: bool) -> None:
+def copy_runtime(dry_run: bool, root: Path = REPO) -> None:
     if dry_run:
         print(f"copy hook runtime to {INSTALL_DIR}")
         return
     for source in RUNTIME_FILES:
         destination = INSTALL_DIR / source
         destination.parent.mkdir(parents=True, exist_ok=True)
-        shutil.copy2(REPO / source, destination)
+        shutil.copy2(root / source, destination)
+
+
+def refresh_installed(root: Path) -> None:
+    """Update the hook runtime and every hook set that is already installed (used by `coderskill install`)."""
+    copy_runtime(False, root)
+    for agent, (path, _events, _unit) in TARGETS.items():
+        settings = json.loads(path.read_text(encoding="utf-8")) if path.is_file() else {}
+        if any(is_coderskill(g) for groups in settings.get("hooks", {}).values() for g in groups):
+            install(agent, False)
+    if git_config("core.hooksPath") and Path(os.path.expanduser(git_config("core.hooksPath"))) == GIT_HOOKS_DIR:
+        install_git(False, False)
 
 
 def main() -> int:
