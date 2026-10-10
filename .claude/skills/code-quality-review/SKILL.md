@@ -7,7 +7,7 @@ description: Perform a focused, read-only professional code-quality review for c
 
 Review the requested code or diff without modifying it. A request to check, review, or assess does not authorize fixes, dependency installation, commits, pushes, or remote changes.
 
-All first-party code, identifiers, comments, documentation, and publishable review artifacts must use clear, concise, professional English. Communicate with the user in Turkish: questions, explanations, progress reports, and personal-knowledge (vault) notes are Turkish. Everything in the repository is English: source code, identifiers, project and repository names, descriptions, documentation, commits, branches, issues, and pull requests.
+All first-party code, identifiers, comments, documentation, and publishable review artifacts must use clear, concise, professional English. Communicate with the user in the operating system's language (the locale reported at session start; if none is set, the language the user writes in); everything in the repository is English: source code, identifiers, project and repository names, descriptions, documentation, commits, branches, issues, and pull requests.
 
 ## Review criteria
 

@@ -7,10 +7,12 @@
     ".gemini/skills"
   ],
   "skills": {
-    "code-quality-review": "dd9ded2cc04a16d8138b65a46aa3f72abd9f0bb18fc8383de5eb749842601191",
-    "github-readiness": "0c5d63ae3d954c131724db2f45f5d09c12c242bcb692b90761192cb03de4cb4c",
-    "professional-coding": "9fc6e1c560ffdb2cf3787cc4d7c0aba108a3bcc2d4b0f0a2ec47c32fd0868d26",
-    "project-bootstrap": "fb1902ec616654d11775f6f831309231c24dd267f93db98ecdf63798d8a1aef9",
-    "security-audit": "9e54fcfeff3b2f8e7936edf9ba6f12d04e869130cd9929bbc75530f8d5a5777c"
+    "code-quality-review": "ebc66ee99d9373cbea4f1cc860e2aabf13ef03bce67ec471993d79ca535a89b8",
+    "github-readiness": "8195097613ce70391714cd84508d5d653267462233e7969c7bf6060dc5e7cf10",
+    "professional-coding": "34a02d595778776a4cad0eb7e101a478a45248fbee73564e46e3e66a711c8ac7",
+    "project-bootstrap": "24c521d091e46d4f92f37196eab57ac53421171caeb285bcdce1667b86f59709",
+    "security-audit": "614b3707ea79050906f57ae68e127b7dd92981ccb3919175abb784245669a0e8",
+    "systematic-debugging": "677d72c3881e9308eb82747ff74366df4040699a14d55e96ed7d0e577fa29228",
+    "verified-agent-rules": "c4d749cbdaaaffe9b036b53b75a2af2b18c3ac25925d30b41ce1b23143c4bcb8"
   }
 }

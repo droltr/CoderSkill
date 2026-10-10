@@ -2,9 +2,8 @@ schema: 1
 project_id: example-project
 repository: droltr/example-project
 default_branch: main
+visibility: private
 artifact_language: english
-user_communication_language: en
-system_language_suggestion: auto
 active_profiles:
   - github-actions
   - github-security

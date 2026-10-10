@@ -7,7 +7,7 @@ def main():
     branch = f"{args.kind}/issue-{args.issue}"
     result = subprocess.run(["git", "branch", "--show-current"], capture_output=True, text=True, check=False)
     if args.command == "plan":
-        print(json.dumps({"schema": 1, "read_only": True, "issue": args.issue, "current_branch": result.stdout.strip(), "planned_branch": branch, "steps": ["verify main is synchronized", "create topic branch", "implement and validate", "commit with issue reference", "push topic branch", "open focused pull request", "wait for required checks", "review and merge"], "mutations": "not performed"}, indent=2)); return
+        print(json.dumps({"schema": 1, "read_only": True, "issue": args.issue, "current_branch": result.stdout.strip(), "planned_branch": branch, "steps": ["verify main is synchronized", "create topic branch", "implement and validate", "commit with issue reference", "push topic branch", "open focused pull request", "wait for required checks", "user reviews and merges"], "mutations": "not performed"}, indent=2)); return
     if os.environ.get("CODERSKILL_CONFIRM_ACCOUNT") != "droltr" or os.environ.get("CODERSKILL_CONFIRM_REPOSITORY") != "droltr/CoderSkill":
         print(json.dumps({"schema": 1, "read_only": False, "status": "blocked", "reason": "explicit identity and repository confirmation required"}, indent=2)); return 2
     print(json.dumps({"schema": 1, "read_only": False, "status": "authorized", "mutations": "available only to the caller", "issue": args.issue, "planned_branch": branch}, indent=2))
