@@ -1,8 +1,11 @@
 #!/usr/bin/env python3
 """Install CoderSkill globally and generate a safe project-start prompt."""
 from __future__ import annotations
-import argparse, os, shutil, subprocess, sys
+import argparse, json, shutil, subprocess, sys, time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from build_adapters import digest_tree  # noqa: E402 - the same digest as adapters/manifest.json
 
 ROOT = Path(__file__).resolve().parents[1]
 
@@ -12,17 +15,7 @@ AGENT_SOURCES = {"claude": ".claude", "codex": ".agents", "gemini": ".gemini"}
 AGENT_TARGETS = {"claude": ".claude/skills", "codex": ".codex/skills", "gemini": ".gemini/skills"}
 
 
-def tree_digest(path: Path) -> str:
-    import hashlib
-    digest = hashlib.sha256()
-    for item in sorted(path.rglob("*")):
-        if item.is_file():
-            digest.update(item.relative_to(path).as_posix().encode() + b"\0" + item.read_bytes() + b"\0")
-    return digest.hexdigest()
-
-
 def read_receipt(target: Path) -> dict:
-    import json
     try:
         return json.loads((target / RECEIPT).read_text(encoding="utf-8"))
     except (OSError, ValueError):
@@ -30,7 +23,6 @@ def read_receipt(target: Path) -> dict:
 
 
 def install_agent(agent: str, home: Path, update: bool, force: bool) -> int:
-    import json, time
     source = ROOT / AGENT_SOURCES[agent] / "skills"
     target = home / AGENT_TARGETS[agent]
     target.mkdir(parents=True, exist_ok=True)
@@ -38,12 +30,12 @@ def install_agent(agent: str, home: Path, update: bool, force: bool) -> int:
     status = 0
     for skill in sorted(p for p in source.iterdir() if p.is_dir()):
         destination = target / skill.name
-        new_digest = tree_digest(skill)
+        if destination.exists() and not update:
+            print(f"preserved existing {agent}/{skill.name}; use --update to replace")
+            continue
+        new_digest = digest_tree(skill)
         if destination.exists():
-            if not update:
-                print(f"preserved existing {agent}/{skill.name}; use --update to replace")
-                continue
-            current = tree_digest(destination)
+            current = digest_tree(destination)
             if current == new_digest:
                 receipt[skill.name] = new_digest
                 print(f"up to date {agent}/{skill.name}")

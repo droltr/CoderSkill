@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Verify GitHub security and default-branch policy without mutating remote state."""
-import argparse, json, re, subprocess
+import argparse, json, subprocess, sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 
 def api(path):
@@ -11,9 +14,14 @@ def api(path):
 
 
 def origin_repository():
+    from identity_gate import origin_repository as parse  # one parser for GitHub remotes
     origin = subprocess.run(["git", "remote", "get-url", "origin"], capture_output=True, text=True, check=False).stdout.strip()
-    match = re.search(r"github\.com[/:]([^/]+)/([^/]+?)(?:\.git)?/?$", origin)
-    return f"{match.group(1)}/{match.group(2)}" if match else None
+    return parse(origin) or None
+
+
+def fail(reason):
+    print(json.dumps({"schema": 1, "read_only": True, "status": "error", "reason": reason}, indent=2))
+    return 2
 
 
 def main():
@@ -23,12 +31,10 @@ def main():
     args = parser.parse_args()
     repo = args.repo or origin_repository()
     if not repo:
-        print(json.dumps({"schema": 1, "read_only": True, "status": "error", "reason": "no GitHub origin; pass --repo"}, indent=2))
-        return 2
+        return fail("no GitHub origin; pass --repo")
     metadata, error = api(f"repos/{repo}")
     if metadata is None:
-        print(json.dumps({"schema": 1, "read_only": True, "status": "error", "reason": error}, indent=2))
-        return 2
+        return fail(error)
     branch = metadata.get("default_branch", "main")
     protection, _ = api(f"repos/{repo}/branches/{branch}/protection")
     protection = protection or {}
@@ -40,8 +46,8 @@ def main():
         "dependabot_security_updates": security.get("dependabot_security_updates", {}).get("status") == "enabled",
         "main_protected": bool(protection),
         "required_ci_checks": bool((protection.get("required_status_checks") or {}).get("contexts")),
-        "force_push_disabled": bool(protection) and not protection.get("allow_force_pushes", {}).get("enabled", True),
-        "branch_deletion_disabled": bool(protection) and not protection.get("allow_deletions", {}).get("enabled", True),
+        "force_push_disabled": not protection.get("allow_force_pushes", {}).get("enabled", True),
+        "branch_deletion_disabled": not protection.get("allow_deletions", {}).get("enabled", True),
     }
     if args.expect_visibility:
         checks["visibility_" + args.expect_visibility] = str(metadata.get("visibility", "")).lower() == args.expect_visibility

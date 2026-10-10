@@ -39,12 +39,13 @@ def publishable(root: Path) -> set[Path] | None:
     return {root / name for name in result.stdout.decode("utf-8", "replace").split("\0") if name}
 
 
-def files(root: Path, selected: Path | None, all_files: bool = False) -> list[Path]:
+def files(root: Path, selected: Path | None, all_files: bool = False, allowed: set[Path] | None = None) -> list[Path]:
     base = (root / selected).resolve() if selected else root
     if not base.is_relative_to(root):
         raise ValueError("scan path must remain inside repository root")
     candidates = [base] if base.is_file() else base.rglob("*")
-    allowed = None if all_files else publishable(root)
+    if allowed is None and not all_files:
+        allowed = publishable(root)
     return [
         path for path in candidates
         if path.is_file()
@@ -53,9 +54,10 @@ def files(root: Path, selected: Path | None, all_files: bool = False) -> list[Pa
     ]
 
 
-def audit(root: Path, selected: Path | None, all_files: bool = False) -> list[dict[str, object]]:
+def audit(root: Path, selected: Path | None, all_files: bool = False,
+          allowed: set[Path] | None = None) -> list[dict[str, object]]:
     findings: list[dict[str, object]] = []
-    for path in files(root, selected, all_files):
+    for path in files(root, selected, all_files, allowed):
         try:
             data = path.read_bytes()
             text = data.decode("utf-8")

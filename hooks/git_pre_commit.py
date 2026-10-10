@@ -10,13 +10,12 @@ repository's own `.git/hooks/pre-commit`, if any, so existing hooks keep working
 
 from __future__ import annotations
 
-import os
 import subprocess
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from coderskill_hook import LOCAL_DIR, PRIVATE_DIR, staged_secret  # noqa: E402
+from coderskill_hook import LOCAL_DIR, PRIVATE_DIR, run_repository_hook, staged_secret  # noqa: E402
 
 PRIVATE_PREFIXES = (f"{PRIVATE_DIR}/", f"{LOCAL_DIR}/")
 # Local notes that the workspace keeps out of Git through the global ignore file.
@@ -38,16 +37,6 @@ def private_paths(paths: list[str]) -> list[str]:
     ]
 
 
-def run_repository_hook() -> int:
-    common = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, check=False,
-    ).stdout.strip()
-    hook = Path(common) / "hooks" / "pre-commit"
-    if common and hook.is_file() and os.access(hook, os.X_OK):
-        return subprocess.run([str(hook), *sys.argv[1:]], check=False).returncode
-    return 0
-
-
 def main() -> int:
     blocked = private_paths(staged_paths())
     if blocked:
@@ -60,7 +49,7 @@ def main() -> int:
     if finding:
         print(f"CoderSkill pre-commit: staged changes contain a {finding}. Remove it before committing.", file=sys.stderr)
         return 1
-    return run_repository_hook()
+    return run_repository_hook("pre-commit", sys.argv[1:])
 
 
 if __name__ == "__main__":

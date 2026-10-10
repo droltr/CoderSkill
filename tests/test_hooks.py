@@ -212,6 +212,18 @@ class GitRuleTests(RepoTestCase):
         self.assertEqual(self.bash("git commit --no-verify -m x"), "deny")
         self.assertEqual(self.bash("CODERSKILL_ALLOW_PROTECTED_PUSH=1 git push origin main"), "deny")
 
+    def test_switching_off_git_hooks_is_denied(self):
+        for command in (
+            "git -c core.hooksPath=/dev/null commit -m x",
+            "git -ccore.hooksPath=/tmp push origin feat/x",
+            "git --config-env=core.hooksPath=HOOKS commit -m x",
+            "GIT_CONFIG_PARAMETERS=\"'core.hooksPath'='/dev/null'\" git commit -m x",
+        ):
+            with self.subTest(command=command):
+                self.assertEqual(self.bash(command), "deny")
+        # Negative control: other one-off settings stay allowed.
+        self.assertIsNone(self.bash("git -c user.name=x -c commit.gpgsign=true log -1"))
+
     def test_commit_all_scans_unstaged_changes(self):
         (self.repo / "README.md").write_text("token=" + "ghp_" + "B" * 36 + "\n")
         self.assertEqual(self.bash("git commit -am update"), "deny")

@@ -16,9 +16,9 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from security_audit import RULES, audit, fingerprint  # noqa: E402
+from security_audit import RULES, audit, fingerprint, publishable  # noqa: E402
 
-HISTORY_CATEGORIES = {"secret", "private-key"}
+HISTORY_RULES = [rule for rule in RULES if rule[0] in {"secret", "private-key"}]
 
 
 def run(command):
@@ -47,11 +47,10 @@ def history_findings() -> list[dict]:
         elif line.startswith("+++ "):
             path = line[6:] if line.startswith("+++ b/") else line[4:]
         elif line.startswith("+"):
-            for category, severity, rule in RULES:
-                if category in HISTORY_CATEGORIES:
-                    for match in rule.finditer(line):
-                        findings.append({"category": category, "severity": severity, "commit": commit,
-                                         "path": path, "fingerprint": fingerprint(match.group(0))})
+            for category, severity, rule in HISTORY_RULES:
+                for match in rule.finditer(line):
+                    findings.append({"category": category, "severity": severity, "commit": commit,
+                                     "path": path, "fingerprint": fingerprint(match.group(0))})
     return findings
 
 
@@ -62,7 +61,8 @@ def audit_check(scope: str, base: str) -> dict:
         description = "history secret scan"
     else:
         paths = scope_files(scope, base)
-        findings = [item for path in paths if (root / path).is_file() for item in audit(root, Path(path))]
+        allowed = publishable(root)
+        findings = [item for path in paths if (root / path).is_file() for item in audit(root, Path(path), allowed=allowed)]
         description = f"{scope} audit of {len(paths)} file(s)"
     return {"command": description, "returncode": 1 if findings else 0,
             "output": json.dumps(findings)[-2000:]}

@@ -115,8 +115,8 @@ def main() -> int:
     try:
         skills = canonical_skills(root)
         files = expected_files(root, skills)
-        mismatches = check(root, files) + manifest_drift(root, skills)
         if args.check:
+            mismatches = check(root, files) + manifest_drift(root, skills)
             if mismatches:
                 print("adapter drift detected:")
                 print("\n".join(f"- {item}" for item in mismatches))

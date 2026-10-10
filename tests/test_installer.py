@@ -1,11 +1,14 @@
 import json
 import os
 import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
 ROOT = Path(__file__).parents[1]
+sys.path.insert(0, str(ROOT / "scripts"))
+from build_adapters import digest_tree  # noqa: E402
 CLI = ROOT / "scripts" / "coderskill"
 
 
@@ -33,13 +36,7 @@ class InstallerTests(unittest.TestCase):
         receipt_path = self.home / ".claude" / "skills" / ".coderskill-installed.json"
         receipt = json.loads(receipt_path.read_text())
         # Simulate an earlier installation of that old content.
-        import hashlib
-        digest = hashlib.sha256()
-        folder = self.skill.parent
-        for item in sorted(folder.rglob("*")):
-            if item.is_file():
-                digest.update(item.relative_to(folder).as_posix().encode() + b"\0" + item.read_bytes() + b"\0")
-        receipt["professional-coding"] = digest.hexdigest()
+        receipt["professional-coding"] = digest_tree(self.skill.parent)
         receipt_path.write_text(json.dumps(receipt))
         self.assertEqual(self.install("--update").returncode, 0)
         self.assertNotIn("old version", self.skill.read_text())

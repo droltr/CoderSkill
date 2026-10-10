@@ -14,12 +14,13 @@ After the check the repository's own `.git/hooks/pre-push` runs with the same in
 from __future__ import annotations
 
 import os
-import subprocess
 import sys
 from pathlib import Path
 
-PROTECTED = {"refs/heads/main", "refs/heads/master"}
-OVERRIDE = "CODERSKILL_ALLOW_PROTECTED_PUSH"
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from coderskill_hook import OVERRIDE_VARIABLE as OVERRIDE, PROTECTED_BRANCHES, run_repository_hook  # noqa: E402
+
+PROTECTED = {f"refs/heads/{branch}" for branch in PROTECTED_BRANCHES}
 
 
 def blocked_refs(lines: list[str]) -> list[str]:
@@ -31,16 +32,6 @@ def blocked_refs(lines: list[str]) -> list[str]:
     return refs
 
 
-def run_repository_hook(argv: list[str], data: str) -> int:
-    common = subprocess.run(
-        ["git", "rev-parse", "--git-common-dir"], capture_output=True, text=True, check=False,
-    ).stdout.strip()
-    hook = Path(common) / "hooks" / "pre-push"
-    if common and hook.is_file() and os.access(hook, os.X_OK):
-        return subprocess.run([str(hook), *argv], input=data, text=True, check=False).returncode
-    return 0
-
-
 def main() -> int:
     data = sys.stdin.read()
     refs = blocked_refs(data.splitlines())
@@ -49,7 +40,7 @@ def main() -> int:
         print("Push a topic branch and open a pull request. For a deliberate owner push, run the command "
               f"again with {OVERRIDE}=1.", file=sys.stderr)
         return 1
-    return run_repository_hook(sys.argv[1:], data)
+    return run_repository_hook("pre-push", sys.argv[1:], data)
 
 
 if __name__ == "__main__":

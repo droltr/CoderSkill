@@ -24,14 +24,12 @@ from __future__ import annotations
 
 import argparse
 import fnmatch
-import hashlib
 import json
 import os
 import re
 import shlex
 import subprocess
 import sys
-import tempfile
 import time
 from pathlib import Path
 
@@ -84,14 +82,8 @@ def project_root(cwd: str | None) -> Path | None:
     """Return the git work-tree root of cwd, or None outside a repository."""
     if not cwd:
         return None
-    try:
-        result = subprocess.run(
-            ["git", "-C", cwd, "rev-parse", "--show-toplevel"],
-            capture_output=True, text=True, timeout=5, check=False,
-        )
-    except (OSError, subprocess.SubprocessError):
-        return None
-    return Path(result.stdout.strip()) if result.returncode == 0 and result.stdout.strip() else None
+    top = git_out(Path(cwd), "rev-parse", "--show-toplevel")
+    return Path(top) if top else None
 
 
 LOCAL_IGNORE = "# Local agent session data. Never commit.\n*\n"
@@ -131,12 +123,22 @@ def safe_subdir(base: Path, name: str) -> Path | None:
     return path
 
 
-def write_replacing(target: Path, data: bytes) -> None:
-    """Write through a new temporary file and rename it, so a symlink at target is replaced."""
+def write_replacing(target: Path, data: bytes | None = None, source: Path | None = None) -> None:
+    """Write data (or stream source) through a new temporary file and rename it over target.
+
+    Renaming replaces a symlink at target instead of writing through it.
+    """
+    import shutil
+    import tempfile  # imported here: most hook events never write files
+
     fd, tmp = tempfile.mkstemp(dir=target.parent, prefix=f".{target.name}.")
     try:
         with os.fdopen(fd, "wb") as handle:
-            handle.write(data)
+            if source is not None:
+                with open(source, "rb") as reader:
+                    shutil.copyfileobj(reader, handle)
+            else:
+                handle.write(data or b"")
         os.replace(tmp, target)
     except BaseException:
         Path(tmp).unlink(missing_ok=True)
@@ -150,13 +152,7 @@ def append_no_follow(target: Path, text: str) -> None:
 
 
 def current_branch(cwd: str) -> str:
-    try:
-        return subprocess.run(
-            ["git", "-C", cwd, "branch", "--show-current"],
-            capture_output=True, text=True, timeout=5, check=False,
-        ).stdout.strip()
-    except (OSError, subprocess.SubprocessError):
-        return ""
+    return git_out(Path(cwd), "branch", "--show-current")
 
 
 def context_output(event: str, text: str) -> dict:
@@ -243,13 +239,22 @@ def sync_report(root: Path) -> list[str]:
     return lines
 
 
+def run_repository_hook(name: str, argv: list[str], data: str | None = None) -> int:
+    """Run the repository's own git hook of the same name, as git would without core.hooksPath."""
+    common = git_out(Path.cwd(), "rev-parse", "--git-common-dir")
+    hook = Path(common) / "hooks" / name
+    if common and hook.is_file() and os.access(hook, os.X_OK):
+        return subprocess.run([str(hook), *argv], input=data, text=True, check=False).returncode
+    return 0
+
+
 # ---------------------------------------------------------------- session start
 
 
 def session_start(data: dict, subagent: bool = False) -> dict:
     text = CONTEXT_FILE.read_text(encoding="utf-8")
-    root = project_root(data.get("cwd"))
-    if root and not subagent:
+    root = None if subagent else project_root(data.get("cwd"))
+    if root:
         save_snapshot(root, data.get("session_id"))
         notes = [f"\nProject root: {root.name}"]
         if (root / ".coderskill" / "project.yml").is_file():
@@ -309,10 +314,13 @@ SUDO_VALUE_OPTIONS = {"-u", "-g", "-h", "-p", "-C", "-D", "-r", "-t", "-U", "-T"
 ENV_VALUE_OPTIONS = {"-u", "--unset", "-C", "--chdir", "-S", "--split-string"}
 SHELLS = {"sh", "bash", "zsh", "dash", "ksh"}
 OVERRIDE_VARIABLE = "CODERSKILL_ALLOW_PROTECTED_PUSH"
+ASSIGNMENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*=")
+# Variables that change git configuration (and so can switch hooks off) for one command.
+GIT_CONFIG_VARIABLES = ("GIT_CONFIG_PARAMETERS", "GIT_CONFIG_COUNT", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM",
+                        "GIT_CONFIG_NOSYSTEM", "GIT_DIR", "GIT_EXEC_PATH")
 # git commit options whose value is the next argument.
 COMMIT_VALUE_OPTIONS = {"-m", "-F", "-c", "-C", "-t", "--message", "--file", "--author", "--date",
                         "--template", "--reuse-message", "--reedit-message", "--fixup", "--squash", "--cleanup"}
-ZERO_SHA = "0" * 40
 
 
 def strip_heredocs(command: str) -> str:
@@ -337,7 +345,7 @@ def unwrap(tokens: list[str]) -> list[str] | str:
     """
     while tokens:
         head = Path(tokens[0]).name
-        if "=" in tokens[0] and not tokens[0].startswith("-") and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", tokens[0]):
+        if ASSIGNMENT.match(tokens[0]):
             tokens = tokens[1:]
         elif head in ("sudo", "doas", "env"):
             values = SUDO_VALUE_OPTIONS if head != "env" else ENV_VALUE_OPTIONS
@@ -387,7 +395,7 @@ def split_commands(command: str, cwd: str, depth: int = 0) -> list[tuple[list[st
             tokens = shlex.split(part, comments=True)
         except ValueError:
             tokens = part.split()
-        assignments = [t.split("=", 1)[0] for t in tokens if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", t)]
+        assignments = [t.split("=", 1)[0] for t in tokens if ASSIGNMENT.match(t)]
         if tokens and tokens[0] == "cd":
             if len(tokens) > 1:
                 cwd = os.path.join(cwd, os.path.expanduser(tokens[1]))
@@ -402,18 +410,25 @@ def split_commands(command: str, cwd: str, depth: int = 0) -> list[tuple[list[st
     return commands
 
 
-def git_args(tokens: list[str], cwd: str) -> tuple[list[str], str] | None:
-    """Return (git arguments without global options, repository directory), or None."""
+HOOK_SETTINGS = re.compile(r"^core\.hookspath\b|^core\.hookspath=", re.IGNORECASE)
+
+
+def git_args(tokens: list[str], cwd: str) -> tuple[list[str], str, list[str]] | None:
+    """Return (git arguments, repository directory, `-c` settings), or None if not git."""
     if Path(tokens[0]).name != "git":
         return None
-    args = tokens[1:]
+    args, settings = tokens[1:], []
     while args and args[0].startswith("-"):
         option = args.pop(0)
         if option == "-C" and args:
             cwd = os.path.join(cwd, os.path.expanduser(args.pop(0)))
-        elif option in ("-c", "--git-dir", "--work-tree", "--namespace") and args:
+        elif option in ("-c", "--config-env") and args:
+            settings.append(args.pop(0))
+        elif option.startswith(("--config-env=", "-c")) and len(option) > 2:
+            settings.append(option.split("=", 1)[1] if option.startswith("--") else option[2:])
+        elif option in ("--git-dir", "--work-tree", "--namespace", "--exec-path") and args:
             args.pop(0)
-    return args, cwd
+    return args, cwd, settings
 
 
 def push_targets(refspecs: list[str], cwd: str) -> list[str]:
@@ -455,7 +470,9 @@ def commit_includes_worktree(rest: list[str]) -> bool:
     return False
 
 
-def check_git(args: list[str], cwd: str) -> tuple[str, str] | None:
+def check_git(args: list[str], cwd: str, settings: list[str] | None = None) -> tuple[str, str] | None:
+    if any(HOOK_SETTINGS.match(setting) for setting in settings or []):
+        return "deny", "CoderSkill: overriding core.hooksPath switches off the git hooks that protect main and block secrets."
     if not args:
         return None
     sub, rest = args[0], args[1:]
@@ -499,10 +516,8 @@ def staged_secret(cwd: str, worktree: bool = False) -> str | None:
         if not line.startswith("+"):
             continue
         for name, pattern in SECRET_PATTERNS:
-            match = pattern.search(line)
-            if match:
-                digest = hashlib.sha256(match.group(0).encode()).hexdigest()[:12]
-                return f"{name} in {current} (fingerprint {digest})"
+            if pattern.search(line):
+                return f"{name} in {current}"
     return None
 
 
@@ -536,6 +551,8 @@ def bash_decision(command: str, cwd: str) -> tuple[str, str] | None:
     for tokens, directory, assignments in split_commands(command, cwd):
         if OVERRIDE_VARIABLE in assignments:
             return "deny", f"CoderSkill: {OVERRIDE_VARIABLE} is reserved for the user."
+        if Path(tokens[0]).name == "git" and any(v in assignments for v in GIT_CONFIG_VARIABLES):
+            return "deny", "CoderSkill: GIT_CONFIG_* and GIT_DIR overrides can switch off the git hooks."
         if merges_pull_request(tokens):
             return "deny", "CoderSkill: the user performs every merge. Report that the pull request is ready instead."
         parsed = git_args(tokens, directory)
@@ -662,13 +679,12 @@ def records_missing(root: Path, session_id: str | None) -> bool:
         snapshot = json.loads(path.read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError):
         return False
-    before = snapshot.get("state", {})
-    changed = [p for p, value in worktree_state(root).items() if before.get(p) != value]
-    if not changed:
-        return False
     started = snapshot.get("started", 0)
     records = [*(root / r for r in REQUEST_FILES), *(root / PRIVATE_DIR / "sessions").glob("*.md")]
-    return not any(p.is_file() and p.stat().st_mtime >= started for p in records)
+    if any(p.is_file() and p.stat().st_mtime >= started for p in records):
+        return False
+    before = snapshot.get("state", {})
+    return any(before.get(p) != value for p, value in worktree_state(root).items())
 
 
 # ---------------------------------------------------------------- session end
@@ -684,19 +700,19 @@ def session_end(data: dict, agent: str) -> None:
     if not target_dir:
         return
     source_path = Path(source)
-    write_replacing(target_dir / f"{agent}-{source_path.name}", source_path.read_bytes())
+    write_replacing(target_dir / f"{agent}-{source_path.name}", source=source_path)
     subagents = source_path.with_suffix("") / "subagents"
-    if not subagents.is_dir():
+    copy_root = safe_subdir(target_dir, f"{agent}-{source_path.stem}-subagents") if subagents.is_dir() else None
+    if copy_root is None:
         return
-    copy_root = safe_subdir(target_dir, f"{agent}-{source_path.stem}-subagents")
     for item in sorted(subagents.rglob("*")):
-        if copy_root is None or item.is_symlink() or not item.is_file():
+        if item.is_symlink() or not item.is_file():
             continue
         parent = copy_root
         for part in item.relative_to(subagents).parent.parts:
             parent = safe_subdir(parent, part) if parent else None
         if parent:
-            write_replacing(parent / item.name, item.read_bytes())
+            write_replacing(parent / item.name, source=item)
 
 
 # ---------------------------------------------------------------- main

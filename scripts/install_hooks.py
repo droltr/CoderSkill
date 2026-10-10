@@ -26,15 +26,16 @@ import time
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parents[1]
-INSTALL_DIR = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "coderskill"
-# Repository file -> installed copy. The hook imports scripts/security_audit.py by relative path.
-RUNTIME_FILES = {
-    "hooks/coderskill_hook.py": "hooks/coderskill_hook.py",
-    "hooks/git_pre_commit.py": "hooks/git_pre_commit.py",
-    "hooks/git_pre_push.py": "hooks/git_pre_push.py",
-    "hooks/session-context.md": "hooks/session-context.md",
-    "scripts/security_audit.py": "scripts/security_audit.py",
-}
+CONFIG_HOME = Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config")
+INSTALL_DIR = CONFIG_HOME / "coderskill"
+# Copied to the same relative paths under INSTALL_DIR; the hook imports scripts/security_audit.py.
+RUNTIME_FILES = (
+    "hooks/coderskill_hook.py",
+    "hooks/git_pre_commit.py",
+    "hooks/git_pre_push.py",
+    "hooks/session-context.md",
+    "scripts/security_audit.py",
+)
 HOOK = INSTALL_DIR / "hooks" / "coderskill_hook.py"
 GIT_PRE_COMMIT = INSTALL_DIR / "hooks" / "git_pre_commit.py"
 GIT_PRE_PUSH = INSTALL_DIR / "hooks" / "git_pre_push.py"
@@ -133,7 +134,7 @@ def global_ignore_file() -> Path:
     configured = git_config("core.excludesfile")
     if configured:
         return Path(os.path.expanduser(configured))
-    return Path(os.environ.get("XDG_CONFIG_HOME") or Path.home() / ".config") / "git" / "ignore"
+    return CONFIG_HOME / "git" / "ignore"
 
 
 def install_git(dry_run: bool, force: bool) -> int:
@@ -150,13 +151,11 @@ def install_git(dry_run: bool, force: bool) -> int:
         print(f"append to {ignore}: {missing or 'nothing'}")
         return 0
     GIT_HOOKS_DIR.mkdir(parents=True, exist_ok=True)
-    pre_commit = GIT_HOOKS_DIR / "pre-commit"
-    # Unlike the agent hooks, the git hook fails closed: a commit is refused if the check cannot run.
-    pre_commit.write_text(f'#!/bin/sh\nexec python3 -I "{GIT_PRE_COMMIT}" "$@"\n', encoding="utf-8")
-    pre_commit.chmod(0o755)
-    pre_push = GIT_HOOKS_DIR / "pre-push"
-    pre_push.write_text(f'#!/bin/sh\nexec python3 -I "{GIT_PRE_PUSH}" "$@"\n', encoding="utf-8")
-    pre_push.chmod(0o755)
+    # Unlike the agent hooks, the git hooks fail closed: git stops if the check cannot run.
+    for name, script in (("pre-commit", GIT_PRE_COMMIT), ("pre-push", GIT_PRE_PUSH)):
+        path = GIT_HOOKS_DIR / name
+        path.write_text(f'#!/bin/sh\nexec python3 -I "{script}" "$@"\n', encoding="utf-8")
+        path.chmod(0o755)
     for name in CHAINED_GIT_HOOKS:
         path = GIT_HOOKS_DIR / name
         path.write_text(CHAIN_SCRIPT, encoding="utf-8")
@@ -176,8 +175,8 @@ def copy_runtime(dry_run: bool) -> None:
     if dry_run:
         print(f"copy hook runtime to {INSTALL_DIR}")
         return
-    for source, target in RUNTIME_FILES.items():
-        destination = INSTALL_DIR / target
+    for source in RUNTIME_FILES:
+        destination = INSTALL_DIR / source
         destination.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(REPO / source, destination)
 
