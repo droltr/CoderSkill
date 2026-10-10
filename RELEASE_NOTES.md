@@ -11,7 +11,7 @@ This file records user-visible changes and durable workflow or security decision
 - Require signed commits with one signing key per machine.
 - Replace scattered pause conditions with one closed list of stop reasons; status markers only on the message that ends a turn.
 - Confirm GitHub identity and target once per repository and record it locally.
-- Take the communication language from the project profile or the user's instructions.
+- Talk to the user in the operating system's language, read from the locale at session start; repository content stays English. The profile fields `user_communication_language` and `system_language_suggestion` are no longer required and are ignored.
 - Add the `systematic-debugging` skill, a completion gate, coding discipline rules and a requirement clarification step.
 - Move OpenRGB and Mystic Light rules out of the generic skill into a conditional reference.
 

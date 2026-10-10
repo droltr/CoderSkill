@@ -56,6 +56,18 @@ class SessionStartTests(RepoTestCase):
         self.assertIn("Open thing", context)
         self.assertNotIn("Done thing", context)
 
+    def test_reports_the_system_language(self):
+        def context(**locale):
+            env = {k: v for k, v in os.environ.items() if k not in ("LANG", "LC_ALL", "LC_MESSAGES")}
+            result = subprocess.run(["python3", "-I", str(HOOK), "subagent-start"], input="{}",
+                                    capture_output=True, text=True, env={**env, **locale}, check=True)
+            return json.loads(result.stdout)["hookSpecificOutput"]["additionalContext"]
+
+        self.assertIn("User communication language: tr-TR", context(LANG="tr_TR.UTF-8"))
+        self.assertIn("User communication language: de-DE", context(LANG="tr_TR.UTF-8", LC_ALL="de_DE.UTF-8"))
+        # Negative control: the C locale names no language.
+        self.assertIn("no system locale is set", context(LANG="C"))
+
     def test_private_requests_research_and_sync_state(self):
         private = self.repo / ".private"
         (private / "research").mkdir(parents=True)

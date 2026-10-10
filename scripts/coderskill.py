@@ -101,7 +101,7 @@ def start(args) -> int:
     if args.run and not args.confirm_account:
         print("Account confirmation required. Re-run with --confirm-account only after reviewing the identity and target.", file=sys.stderr)
         return 2
-    prompt = f"Use the professional-coding skill. Read the current project instructions and profile. GitHub repository: {repo}. Classify this directory, preserve main, select only applicable skills, and execute the complete validated workflow. Do not copy CoderSkill into this project. Do not perform destructive actions, credential operations, or hardware writes. Communicate in the language set by the project profile or by the user's own instructions; if neither sets one, ask once and record it in the profile. Write repository artifacts in English. Carry the work through without asking whether to continue; stop only for the reasons listed in professional-coding."
+    prompt = f"Use the professional-coding skill. Read the current project instructions and profile. GitHub repository: {repo}. Classify this directory, preserve main, select only applicable skills, and execute the complete validated workflow. Do not copy CoderSkill into this project. Do not perform destructive actions, credential operations, or hardware writes. Communicate with the user in the operating system's language. Write repository artifacts in English. Carry the work through without asking whether to continue; stop only for the reasons listed in professional-coding."
     print(prompt)
     if not args.run: return 0
     agent = args.agent

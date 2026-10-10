@@ -5,7 +5,7 @@ description: Prepare or resume a local-first software project by locating its wo
 
 # Project Bootstrap
 
-Perform read-only discovery first. Communicate with the user in the language set by the project profile (`user_communication_language`) or by the user's own instructions; everything in the repository is English: source code, identifiers, project and repository names, descriptions, documentation, commits, branches, issues, and pull requests. Write every repository artifact in clear professional English.
+Perform read-only discovery first. Communicate with the user in the operating system's language (the locale reported at session start; if none is set, the language the user writes in); everything in the repository is English: source code, identifiers, project and repository names, descriptions, documentation, commits, branches, issues, and pull requests. Write every repository artifact in clear professional English.
 
 Use the detailed workflows in the `professional-coding` package when available:
 

@@ -43,6 +43,22 @@ class LessonValidatorTests(unittest.TestCase):
         self.assertEqual(self.validate(base.replace("State the durable rule in clear English.", "See /" + "home/alice/x")), "invalid")
 
 
+class ProfileValidatorTests(unittest.TestCase):
+    def validate(self, text):
+        import tempfile
+        with tempfile.NamedTemporaryFile("w", suffix=".yml", delete=False) as handle:
+            handle.write(text)
+        result = subprocess.run([str(ROOT / "scripts" / "validate-project-profile"), handle.name], capture_output=True, text=True)
+        Path(handle.name).unlink()
+        return json.loads(result.stdout)["status"]
+
+    def test_old_language_fields_are_ignored(self):
+        base = (ROOT / ".coderskill" / "project.yml.example").read_text()
+        self.assertEqual(self.validate(base + "user_communication_language: en\nsystem_language_suggestion: auto\n"), "valid")
+        # Negative control: the validator still rejects a broken profile.
+        self.assertEqual(self.validate(base.replace("artifact_language: english", "artifact_language: turkish")), "invalid")
+
+
 class AdapterBuilderTests(unittest.TestCase):
     def setUp(self):
         import tempfile

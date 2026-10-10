@@ -20,7 +20,7 @@ The repository contains the canonical `professional-coding` skill, six focused s
 - Environment readiness and safe software-installation planning.
 - Local repository discovery and GitHub synchronization audits.
 - Evidence-based programming-language and toolchain selection.
-- English-only repository artifacts; the user communication language comes from the project profile (`user_communication_language`) or the user's own instructions.
+- English-only repository artifacts; the agent talks to the user in the operating system's language, which the session-start hook reads from the locale.
 - Continuous execution: agents carry requested work through and stop only for a closed list of reasons.
 - Issue, branch, commit, and pull-request governance.
 - Secret, personal-data, and stable-identifier protection.
@@ -132,7 +132,7 @@ coderskill start execute order 66 \\
 
 If `--github` is omitted, the local `origin` URL is used. Placeholder targets such as `droltr/your-project` are rejected. Before `--run`, CoderSkill displays the active GitHub account and target repository; review them and pass `--confirm-account` only when they are correct. A mismatch stops the operation.
 
-For an empty directory, enter it and run the same command. The agent first learns the purpose, scope, platform, constraints, and communication-language preference before creating project files. It then creates or references an issue, selects only applicable skills, and continues on a topic branch. CoderSkill remains outside the project directory.
+For an empty directory, enter it and run the same command. The agent first learns the purpose, scope, platform, and constraints before creating project files. It then creates or references an issue, selects only applicable skills, and continues on a topic branch. CoderSkill remains outside the project directory.
 
 The focused skills are designed to be invoked by name after they have been installed or linked into the active tool's documented skill directory. Use the smallest skill that matches the request:
 

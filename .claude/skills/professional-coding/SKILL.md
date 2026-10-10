@@ -70,7 +70,7 @@ Follow the work order in [references/work-records.md](references/work-records.md
 ## Language and Communication
 
 - Write all source code, identifiers, comments, commit messages, branch names, issue and pull-request content, documentation, configuration descriptions, logs intended for publication, and repository metadata in clear, concise, professional English.
-- Communicate with the user in the language set by `user_communication_language` in the project profile; when no profile sets it, use the language required by the user's own instructions; otherwise use the language the user writes in. Explain machine-facing output in that language.
+- Communicate with the user in the operating system's language: the locale the session-start hook reports (from `LC_ALL`, `LC_MESSAGES` or `LANG`). When no locale is set, use the language the user writes in. Explain machine-facing output in that language. Everything in the repository stays English.
 - Treat every user request as an instruction to execute, regardless of polite phrasing; stop only for the reasons listed in this skill.
 - Translate or replace newly encountered non-English repository text when it is within the task scope. Do not rewrite historical records or third-party vendored content solely for language consistency.
 

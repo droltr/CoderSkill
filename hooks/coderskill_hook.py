@@ -251,8 +251,25 @@ def run_repository_hook(name: str, argv: list[str], data: str | None = None) -> 
 # ---------------------------------------------------------------- session start
 
 
+def system_language() -> str | None:
+    """Return the locale's language tag (``tr_TR.UTF-8`` -> ``tr-TR``), or None for C/POSIX."""
+    for name in ("LC_ALL", "LC_MESSAGES", "LANG"):  # POSIX precedence for message language
+        value = os.environ.get(name, "").split(".")[0].split("@")[0]
+        if value:
+            return None if value in ("C", "POSIX") else value.replace("_", "-")
+    return None
+
+
+def language_note() -> str:
+    tag = system_language()
+    if tag:
+        return f"\nUser communication language: {tag} (system locale). Write everything in the repository in English."
+    return ("\nUser communication language: no system locale is set; use the language the user writes in. "
+            "Write everything in the repository in English.")
+
+
 def session_start(data: dict, subagent: bool = False) -> dict:
-    text = CONTEXT_FILE.read_text(encoding="utf-8")
+    text = CONTEXT_FILE.read_text(encoding="utf-8") + language_note() + "\n"
     root = None if subagent else project_root(data.get("cwd"))
     if root:
         save_snapshot(root, data.get("session_id"))
