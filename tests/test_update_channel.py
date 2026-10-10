@@ -151,6 +151,14 @@ class ChannelTests(unittest.TestCase):
         self.assertEqual((out / "skills" / "demo" / "SKILL.md").read_text(), "v1\n")
         self.assertFalse((out / "untracked.txt").exists())
 
+    def test_update_shown_at_start_is_not_repeated(self):
+        first = git(self.clone, "rev-parse", "origin/main").stdout.strip()
+        self.install_receipt(first)
+        latest = self.publish("skills/demo/SKILL.md", "v2\n", sign=self.key)
+        self.assertIn("update available", uc.start_notice("claude", home=self.home))
+        uc.remember_session("s2", "claude", home=self.home, reported=latest)
+        self.assertIsNone(uc.session_notice("s2", "claude", home=self.home))
+
     def test_change_request_goes_to_the_local_queue(self):
         import coderskill
         self.assertEqual(coderskill.request("Clarify: the stop rule!", "Why it is needed.", "codex"), 0)

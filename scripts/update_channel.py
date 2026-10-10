@@ -278,10 +278,12 @@ def session_file(session_id: str | None) -> Path | None:
     return SESSIONS_DIR / f"{session_id}.json" if session_id and SESSION_ID.match(session_id) else None
 
 
-def remember_session(session_id: str | None, agent: str, home: Path = HOME) -> None:
+def remember_session(session_id: str | None, agent: str, home: Path = HOME, reported: str | None = None) -> None:
+    """Record the installed commit at session start; `reported` is a main commit already shown then."""
     path = session_file(session_id)
     if path:
-        write_json(path, {"installed_at_start": installed_commit(agent, home), "notified": []})
+        write_json(path, {"installed_at_start": installed_commit(agent, home),
+                          "notified": [f"latest:{reported}"] if reported else []})
 
 
 def session_notice(session_id: str | None, agent: str, home: Path = HOME) -> str | None:

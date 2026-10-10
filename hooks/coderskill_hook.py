@@ -275,8 +275,9 @@ def update_note(data: dict, agent: str, subagent: bool) -> str:
         if subagent:
             notice = update_channel.session_notice(data.get("session_id"), agent)
         else:
-            update_channel.remember_session(data.get("session_id"), agent)
             notice = update_channel.start_notice(agent)
+            reported = update_channel.cached_latest() if notice else None
+            update_channel.remember_session(data.get("session_id"), agent, reported=reported)
     except Exception:  # noqa: BLE001 - an update check must never break the session
         return ""
     return f"\n{notice}\n" if notice else ""
