@@ -45,6 +45,7 @@ MAX_OPEN_REQUESTS = 10
 
 sys.path.insert(0, str(HOOK_DIR.parent / "scripts"))
 from security_audit import RULES  # noqa: E402 - shared with the repository audit
+import update_channel  # noqa: E402 - signed-main update checks, shared with `coderskill install`
 
 # Only critical findings block a commit; identifiers are left to the full audit.
 SECRET_PATTERNS = tuple((name, pattern) for name, severity, pattern in RULES if severity == "critical")
@@ -268,8 +269,22 @@ def language_note() -> str:
             "Write everything in the repository in English.")
 
 
-def session_start(data: dict, subagent: bool = False) -> dict:
-    text = CONTEXT_FILE.read_text(encoding="utf-8") + language_note() + "\n"
+def update_note(data: dict, agent: str, subagent: bool) -> str:
+    """Update state of the installed CoderSkill skills; never raises."""
+    try:
+        if subagent:
+            notice = update_channel.session_notice(data.get("session_id"), agent)
+        else:
+            notice = update_channel.start_notice(agent)
+            reported = update_channel.cached_latest() if notice else None
+            update_channel.remember_session(data.get("session_id"), agent, reported=reported)
+    except Exception:  # noqa: BLE001 - an update check must never break the session
+        return ""
+    return f"\n{notice}\n" if notice else ""
+
+
+def session_start(data: dict, subagent: bool = False, agent: str = "claude") -> dict:
+    text = CONTEXT_FILE.read_text(encoding="utf-8") + language_note() + "\n" + update_note(data, agent, subagent)
     root = None if subagent else project_root(data.get("cwd"))
     if root:
         save_snapshot(root, data.get("session_id"))
@@ -287,6 +302,10 @@ def session_start(data: dict, subagent: bool = False) -> dict:
             notes.extend(rows[:MAX_OPEN_REQUESTS])
             if len(rows) > MAX_OPEN_REQUESTS:
                 notes.append(f"... and {len(rows) - MAX_OPEN_REQUESTS} more.")
+        changes = sorted((root / PRIVATE_DIR / "change-requests").glob("*.md"))
+        if changes:
+            notes.append(f"Skill change requests in {PRIVATE_DIR}/change-requests/ (review with the user, then open issues):")
+            notes.extend(f"- {path.name}" for path in changes[-MAX_LISTED_FILES:])
         research = sorted((root / PRIVATE_DIR / "research").glob("*.md"))
         if research:
             notes.append(f"Research notes in {PRIVATE_DIR}/research/ (read before researching again):")
@@ -317,7 +336,12 @@ def prompt(data: dict, agent: str) -> dict | None:
             "The user said STOP. Make no further tool calls on the target. Report the current "
             "state: what was done, what is unverified, and what is left.",
         )
-    return None
+    try:
+        update_channel.refresh_if_due(agent)
+        notice = update_channel.session_notice(data.get("session_id"), agent)
+    except Exception:  # noqa: BLE001 - an update check must never break the session
+        notice = None
+    return context_output("UserPromptSubmit", notice) if notice else None
 
 
 # ---------------------------------------------------------------- pre tool use
@@ -563,9 +587,80 @@ def merges_pull_request(tokens: list[str]) -> bool:
     return len(tokens) > 1 and tokens[1] == "api" and any(re.search(r"pulls/\d+/merge", t) for t in tokens[2:])
 
 
+# Installed CoderSkill files: agents read them, only `coderskill install` writes them.
+PROTECTED_REASON = (
+    "CoderSkill: installed CoderSkill skills and hook files are read-only for agents. Change the source "
+    "in the CoderSkill repository through a pull request, or record the change with "
+    "`coderskill request \"<title>\" --details \"<what and why>\"`. Updates arrive through `coderskill install`."
+)
+DESTINATION_WRITERS = {"cp", "rsync", "install", "ln"}  # only the last operand (or -t DIR) is written
+ALL_OPERAND_WRITERS = {"mv", "rm", "rmdir", "touch", "truncate", "tee", "chmod", "chown", "chgrp", "chattr",
+                       "unlink", "mkdir", "shred", "patch"}
+IN_PLACE_EDITORS = {"sed", "perl"}
+REDIRECT = re.compile(r"^(?:\d*|&)>>?\|?(.*)$")
+
+
+def protected_roots() -> list[Path]:
+    home = Path.home()
+    roots = [*update_channel.installed_skill_dirs(home), update_channel.CONFIG_DIR, home / ".local/share/coderskill"]
+    roots += [home / target / update_channel.RECEIPT for target in update_channel.AGENT_TARGETS.values()]
+    return [Path(os.path.realpath(root)) for root in roots]
+
+
+def is_protected(path: str, cwd: str, roots: list[Path] | None = None) -> bool:
+    if not path:
+        return False
+    resolved = Path(os.path.realpath(os.path.join(cwd, os.path.expanduser(path))))
+    return any(resolved == root or resolved.is_relative_to(root) for root in roots or protected_roots())
+
+
+def written_paths(tokens: list[str]) -> list[str]:
+    """Paths a command would write (best effort; reading commands return nothing)."""
+    program = Path(tokens[0]).name
+    operands = [t for t in tokens[1:] if not t.startswith("-")]
+    paths = []
+    for index, token in enumerate(tokens):
+        match = REDIRECT.match(token)
+        if match and index:
+            paths.append(match.group(1) or (tokens[index + 1] if index + 1 < len(tokens) else ""))
+    if program in DESTINATION_WRITERS:
+        if "-t" in tokens[:-1]:
+            paths.append(tokens[tokens.index("-t") + 1])
+        elif operands:
+            paths.append(operands[-1])
+    elif program in ALL_OPERAND_WRITERS:
+        paths.extend(operands)
+    elif program in IN_PLACE_EDITORS and any(t.startswith("-i") or t == "--in-place" for t in tokens[1:]):
+        paths.extend(operands)
+    elif program == "dd":
+        paths.extend(t[3:] for t in tokens[1:] if t.startswith("of="))
+    return paths
+
+
+def is_coderskill_command(tokens: list[str]) -> bool:
+    name = Path(tokens[0]).name
+    return name in ("coderskill", "coderskill.py") or (name.startswith("python") and len(tokens) > 1
+                                                         and Path(tokens[1]).name in ("coderskill", "coderskill.py"))
+
+
+def check_protected(tokens: list[str], cwd: str) -> tuple[str, str] | None:
+    if is_coderskill_command(tokens):
+        if "--worktree" in tokens:
+            return "deny", ("CoderSkill: `--worktree` installs unreviewed code; it is for the user only. "
+                            "Agents install the signed main with `coderskill install --update`.")
+        return None
+    roots = protected_roots()
+    if any(is_protected(path, cwd, roots) for path in written_paths(tokens)):
+        return "deny", PROTECTED_REASON
+    return None
+
+
 def bash_decision(command: str, cwd: str) -> tuple[str, str] | None:
     result = None
     for tokens, directory, assignments in split_commands(command, cwd):
+        found = check_protected(tokens, directory)
+        if found:
+            return found
         if OVERRIDE_VARIABLE in assignments:
             return "deny", f"CoderSkill: {OVERRIDE_VARIABLE} is reserved for the user."
         if Path(tokens[0]).name == "git" and any(v in assignments for v in GIT_CONFIG_VARIABLES):
@@ -604,10 +699,13 @@ def pre_tool(data: dict) -> dict | None:
     tool = data.get("tool_name")
     tool_input = data.get("tool_input") or {}
     cwd = data.get("cwd") or "."
+    path = tool_input.get("file_path") or tool_input.get("notebook_path") or ""
     if tool == "Bash":
         found = bash_decision(tool_input.get("command") or "", cwd)
+    elif tool in ("Write", "Edit", "MultiEdit", "NotebookEdit") and is_protected(path, cwd):
+        found = ("deny", PROTECTED_REASON)
     elif tool == "Write":
-        found = write_decision(tool_input.get("file_path") or "")
+        found = write_decision(path)
     else:
         found = None
     return pre_tool_output(*found) if found else None
@@ -737,9 +835,9 @@ def session_end(data: dict, agent: str) -> None:
 
 def run(event: str, agent: str, data: dict) -> dict | None:
     if event == "session-start":
-        return session_start(data)
+        return session_start(data, agent=agent)
     if event == "subagent-start":
-        return session_start(data, subagent=True)
+        return session_start(data, subagent=True, agent=agent)
     if event == "prompt":
         return prompt(data, agent)
     if event == "pre-tool":

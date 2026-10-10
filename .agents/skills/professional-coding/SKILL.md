@@ -78,6 +78,13 @@ Follow the work order in [references/work-records.md](references/work-records.md
 
 Before starting work in a new environment, opening or creating a local repository, installing a required program, or configuring Git/GitHub access, read [references/environment-bootstrap.md](references/environment-bootstrap.md) and follow its audit-first workflow. Do not repeat the full bootstrap on every task after the environment and repository have been verified; re-check only requirements relevant to the current task or facts that may have changed.
 
+### CoderSkill updates and change requests
+
+- The installed CoderSkill skills are read-only for agents; the hooks deny edits to them and to the CoderSkill runtime folders. Other skills stay writable.
+- When the session-start or prompt hook reports a CoderSkill update, run `coderskill install --update --agents <agent>` (it installs only the signed `origin/main`) and tell the user what changed. Restarting the session is the user's decision. Never install with `--worktree`.
+- When an untrusted-commit warning appears, do not install; tell the user.
+- When work shows that a CoderSkill rule should change, record it with `coderskill request "<title>" --details "<what and why>"` instead of editing a copy. Keep private project details out of the request. Inside the CoderSkill repository, change the source through the normal issue, branch and pull-request flow.
+
 Before creating a project or resuming work that may have a remote counterpart, read [references/project-lifecycle.md](references/project-lifecycle.md). Use it to select the local project, synchronize safely, document the project purpose, research the implementation language, and publish reviewed work at completion.
 
 ## One-Line Project Start

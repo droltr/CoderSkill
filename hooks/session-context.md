@@ -22,3 +22,7 @@ These rules apply to this session and to every subagent. They are mandatory.
 6. The user performs every merge. Never merge a pull request and never push to `main`.
 7. Ask immediately before every hardware write. Never commit credentials or identifiers.
 8. When the user says stop, make no further tool calls on the target and report the state.
+9. Never edit the installed CoderSkill skills or runtime files. When a CoderSkill rule needs to
+   change, run `coderskill request "<title>" --details "<what and why>"` (no private project
+   data). Install updates only with `coderskill install --update --agents <agent>`, and tell the
+   user when an update was installed or is waiting.

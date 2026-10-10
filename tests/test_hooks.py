@@ -411,6 +411,44 @@ class SessionEndTests(RepoTestCase):
         self.assertEqual((result.returncode, result.stdout), (0, ""))
 
 
+class ProtectedInstallTests(RepoTestCase):
+    def setUp(self):
+        super().setUp()
+        self.home = Path(os.environ["HOME"])
+        skills = self.home / ".claude" / "skills"
+        (skills / "professional-coding").mkdir(parents=True, exist_ok=True)
+        (skills / "professional-coding" / "SKILL.md").write_text("x\n")
+        (skills / "my-own-skill").mkdir(exist_ok=True)
+        (skills / ".coderskill-installed.json").write_text(json.dumps({"professional-coding": "d", "_source_commit": "c"}))
+        self.skill = skills / "professional-coding" / "SKILL.md"
+
+    def tool(self, name, path):
+        output = run_hook("pre-tool", {"tool_name": name, "tool_input": {"file_path": str(path)}, "cwd": str(self.repo)})
+        return output["hookSpecificOutput"]["permissionDecision"] if output else None
+
+    def test_edit_tools_cannot_change_installed_skills(self):
+        for name in ("Write", "Edit", "MultiEdit"):
+            self.assertEqual(self.tool(name, self.skill), "deny")
+        self.assertEqual(self.tool("Edit", self.home / ".config" / "coderskill" / "hooks" / "coderskill_hook.py"), "deny")
+        # Negative controls: the agent's own skills and the project stay writable.
+        self.assertIsNone(self.tool("Write", self.home / ".claude" / "skills" / "my-own-skill" / "SKILL.md"))
+        self.assertIsNone(self.tool("Edit", self.repo / "README.md"))
+
+    def test_shell_writes_are_denied_and_reads_allowed(self):
+        for command in (f"sed -i s/x/y/ {self.skill}", "rm -rf ~/.claude/skills/professional-coding",
+                        f"cp /tmp/a {self.skill.parent}/", f"echo x > {self.skill}", f"echo x >>{self.skill}",
+                        "cd ~/.claude/skills && mv professional-coding old", "tee ~/.config/coderskill/x < /dev/null"):
+            self.assertEqual(self.bash(command), "deny", command)
+        for command in (f"cat {self.skill}", f"cp {self.skill} /tmp/copy.md", f"diff {self.skill} README.md",
+                        f"sed s/x/y/ {self.skill}", "rm -rf ~/.claude/skills/my-own-skill"):
+            self.assertIsNone(self.bash(command), command)
+
+    def test_install_command_is_allowed_but_not_from_the_worktree(self):
+        self.assertIsNone(self.bash("coderskill install --update --agents claude"))
+        self.assertIsNone(self.bash('coderskill request "Clarify rule" --details "why"'))
+        self.assertEqual(self.bash("scripts/coderskill install --worktree --agents claude"), "deny")
+
+
 class InstallerTests(unittest.TestCase):
     def test_install_is_idempotent_and_keeps_other_hooks(self):
         with tempfile.TemporaryDirectory() as home:
@@ -425,7 +463,7 @@ class InstallerTests(unittest.TestCase):
             self.assertEqual(data["model"], "opus")
             self.assertEqual(data["hooks"]["StopFailure"], [other])
             self.assertEqual(len(data["hooks"]["PreToolUse"]), 1)
-            self.assertEqual(data["hooks"]["PreToolUse"][0]["matcher"], "Bash|Write")
+            self.assertEqual(data["hooks"]["PreToolUse"][0]["matcher"], "Bash|Write|Edit|MultiEdit|NotebookEdit")
             backups = list(settings.parent.glob("settings.json.bak-*"))
             self.assertTrue(backups)
             self.assertNotIn("coderskill_hook", min(backups, key=lambda p: p.stat().st_mtime_ns).read_text())
