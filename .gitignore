@@ -15,3 +15,6 @@ artifacts/
 node_modules/
 __pycache__/
 .pytest_cache/
+
+# Local agent session data (also ignored by its own .gitignore)
+.agent-sessions/

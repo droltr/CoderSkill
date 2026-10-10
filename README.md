@@ -65,6 +65,31 @@ The installer writes only to the user skill directories and user command directo
 scripts/coderskill install --update
 ```
 
+## Agent hooks
+
+`hooks/coderskill_hook.py` loads the CoderSkill rules at the start of every session and
+subagent and enforces the mandatory rules. It uses only the Python standard library.
+
+| Hook | Effect |
+|---|---|
+| `SessionStart`, `SubagentStart` | Inject `hooks/session-context.md` and the open rows of `docs/REQUESTS.md` |
+| `UserPromptSubmit` | Log each request to `.agent-sessions/requests.jsonl`; reinforce "stop" |
+| `PreToolUse` (Claude Code) | Deny PR merges, pushes to `main`, staged secrets, and non-GitHub-compatible new names; ask before hardware writes |
+| `Stop` | Block once on unlabelled hedging; remind when records were not updated |
+| `SessionEnd` | Copy the transcript to `.agent-sessions/transcripts/` |
+
+`.agent-sessions/` is git-ignored by its own `.gitignore`. Install for the agents you use:
+
+```bash
+scripts/install-hooks claude codex --dry-run   # show the result
+scripts/install-hooks claude codex             # write it, with backups
+```
+
+Claude Code reads `~/.claude/settings.json`, Codex `~/.codex/hooks.json`, and Gemini CLI
+`~/.gemini/settings.json` (session start only). Hooks fail open on internal errors; the
+agent permission system remains the hard security boundary. See
+`skills/professional-coding/references/work-records.md` for the record structure.
+
 ## Start or resume a project
 
 Inside a project directory, tell the active AI coding tool:
